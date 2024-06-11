@@ -18,7 +18,7 @@ paths:
                 code:
                   type: number
                   example: 12345
-                initial_value:
+                balance:
                   type: number
                   example: 100.50
                 user:
@@ -154,7 +154,7 @@ paths:
                         type:
                           type: string
                           enum: [credit, debit]
-                          example: 'recharge'
+                          example: 'credit'
                         date:
                           type: string
                           format: date-time
