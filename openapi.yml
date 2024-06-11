@@ -18,6 +18,9 @@ paths:
                 code:
                   type: number
                   example: 12345
+                initial_value:
+                  type: number
+                  example: 100.50
                 user:
                   type: object
                   properties:
@@ -29,6 +32,7 @@ paths:
                       example: '1234567890'
               required:
                 - code
+                - user
       responses:
         '201':
           description: Criado
@@ -40,9 +44,16 @@ paths:
                   message:
                     type: string
                     example: 'Carteira criada com sucesso'
-  /wallet/recharge:
+  /wallet/{code}/credit:
     post:
-      summary: Realizar recarga na carteira
+      summary: Adicionar crédito na carteira
+      parameters:
+        - in: path
+          name: code
+          schema:
+            type: number
+          required: true
+          description: Código da carteira
       requestBody:
         required: true
         content:
@@ -50,18 +61,14 @@ paths:
             schema:
               type: object
               properties:
-                walletId:
-                  type: number
-                  example: 1
                 value:
                   type: number
                   example: 100.50
               required:
-                - walletId
                 - value
       responses:
-        '201':
-          description: Recarga realizada com sucesso
+        '202':
+          description: Crédito adicionado com sucesso
           content:
             application/json:
               schema:
@@ -69,10 +76,17 @@ paths:
                 properties:
                   message:
                     type: string
-                    example: 'Recarga realizada com sucesso'
-  /wallet/debit:
+                    example: 'Crédito adicionado com sucesso'
+  /wallet/{code}/debit:
     post:
       summary: Realizar débito na carteira
+      parameters:
+        - in: path
+          name: code
+          schema:
+            type: number
+          required: true
+          description: Código da carteira
       requestBody:
         required: true
         content:
@@ -80,17 +94,13 @@ paths:
             schema:
               type: object
               properties:
-                walletId:
-                  type: number
-                  example: 1
                 value:
                   type: number
                   example: 100.50
               required:
-                - walletId
                 - value
       responses:
-        '201':
+        '202':
           description: Débito realizado com sucesso
           content:
             application/json:
@@ -143,7 +153,7 @@ paths:
                           example: 100.50
                         type:
                           type: string
-                          enum: [recharge, debit]
+                          enum: [credit, debit]
                           example: 'recharge'
                         date:
                           type: string
@@ -159,3 +169,15 @@ paths:
                   message:
                     type: string
                     example: 'Carteira não encontrada'
+    delete:
+      summary: Cancelar uma carteira
+      parameters:
+        - in: path
+          name: code
+          schema:
+            type: number
+          required: true
+          description: Código da carteira
+      responses:
+        '204':
+          description: Carteira cancelada com sucesso
