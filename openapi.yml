@@ -1,0 +1,161 @@
+openapi: '3.0.2'
+info:
+  title: API Card Consumer
+  version: '1.0'
+servers:
+  - url: https://api.server.test/v1
+paths:
+  /wallet/register:
+    post:
+      summary: Registrar uma nova carteira
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code:
+                  type: number
+                  example: 12345
+                user:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      example: 'John Doe'
+                    phone:
+                      type: string
+                      example: '1234567890'
+              required:
+                - code
+      responses:
+        '201':
+          description: Criado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Carteira criada com sucesso'
+  /wallet/recharge:
+    post:
+      summary: Realizar recarga na carteira
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                walletId:
+                  type: number
+                  example: 1
+                value:
+                  type: number
+                  example: 100.50
+              required:
+                - walletId
+                - value
+      responses:
+        '201':
+          description: Recarga realizada com sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Recarga realizada com sucesso'
+  /wallet/debit:
+    post:
+      summary: Realizar débito na carteira
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                walletId:
+                  type: number
+                  example: 1
+                value:
+                  type: number
+                  example: 100.50
+              required:
+                - walletId
+                - value
+      responses:
+        '201':
+          description: Débito realizado com sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Débito realizado com sucesso'
+  /wallet/{code}:
+    get:
+      summary: Obter informações da carteira pelo código
+      parameters:
+        - in: path
+          name: code
+          schema:
+            type: number
+          required: true
+          description: Código da carteira
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  balance:
+                    type: number
+                    example: 250.75
+                  user:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        example: 'John Doe'
+                      phone:
+                        type: string
+                        example: '1234567890'
+                  transactions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: number
+                          example: 1
+                        value:
+                          type: number
+                          example: 100.50
+                        type:
+                          type: string
+                          enum: [recharge, debit]
+                          example: 'recharge'
+                        date:
+                          type: string
+                          format: date-time
+                          example: '2024-06-11T12:00:00Z'
+        '404':
+          description: Não encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Carteira não encontrada'
