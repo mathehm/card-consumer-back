@@ -21,8 +21,6 @@ export class FirestoreService {
   }
 
   async getWalletByCode(walletCode: number): Promise<any> {
-    console.log(typeof walletCode);
-
     const walletRef = this.firestore
       .collection('wallets')
       .where('code', '==', walletCode)
@@ -104,8 +102,6 @@ export class FirestoreService {
   }
 
   async debit(walletCode: number, debitValue: number): Promise<any> {
-    console.log(typeof walletCode);
-    console.log(typeof debitValue);
     const walletRef = this.firestore
       .collection('wallets')
       .where('code', '==', walletCode)
