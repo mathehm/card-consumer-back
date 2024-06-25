@@ -1,29 +1,29 @@
-import { Injectable, Inject } from '@nestjs/common';
-import { Firestore } from '@google-cloud/firestore';
-import { FieldValue } from '@google-cloud/firestore';
+import { Inject, Injectable } from '@nestjs/common';
+import { CreateWalletDto } from './dto/create-wallet.dto';
+import { FieldValue, Firestore } from '@google-cloud/firestore';
 
 @Injectable()
-export class FirestoreService {
+export class WalletService {
   constructor(@Inject(Firestore) private readonly firestore: Firestore) { }
 
-  async registerWallet(walletData: any): Promise<any> {
+  async create(createWalletDto: CreateWalletDto): Promise<any> {
     const userRef = this.firestore.collection('users').doc();
-    await userRef.set(walletData.user);
+    await userRef.set(createWalletDto.user);
 
     const walletRef = this.firestore.collection('wallets').doc();
     await walletRef.set({
-      code: walletData.code,
-      balance: walletData.balance || 0,
+      code: createWalletDto.code,
+      balance: createWalletDto.balance || 0,
       userId: userRef.id,
     });
 
     return { message: 'Carteira criada com sucesso' };
   }
 
-  async getWalletByCode(walletCode: number): Promise<any> {
+  async findOne(code: number): Promise<any> {
     const walletRef = this.firestore
       .collection('wallets')
-      .where('code', '==', walletCode)
+      .where('code', '==', code)
       .limit(1);
 
     const walletSnapshot = await walletRef.get();
@@ -46,7 +46,7 @@ export class FirestoreService {
 
     const transactionsRef = this.firestore
       .collection('transactions')
-      .where('walletCode', '==', walletCode);
+      .where('walletCode', '==', code);
     const transactionsSnapshot = await transactionsRef.get();
     const transactions = transactionsSnapshot.docs.map((doc) => doc.data());
 
@@ -57,10 +57,10 @@ export class FirestoreService {
     };
   }
 
-  async deleteWallet(walletCode: number): Promise<any> {
+  async remove(code: number): Promise<any> {
     const walletRef = this.firestore
       .collection('wallets')
-      .where('code', '==', walletCode)
+      .where('code', '==', code)
       .limit(1);
     const walletSnapshot = await walletRef.get();
 
@@ -74,10 +74,10 @@ export class FirestoreService {
     return { message: 'Carteira cancelada com sucesso' };
   }
 
-  async credit(walletCode: number, creditValue: number): Promise<any> {
+  async credit(code: number, value: number): Promise<any> {
     const walletRef = this.firestore
       .collection('wallets')
-      .where('code', '==', walletCode)
+      .where('code', '==', code)
       .limit(1);
     const walletSnapshot = await walletRef.get();
 
@@ -88,12 +88,12 @@ export class FirestoreService {
     const walletDoc = walletSnapshot.docs[0];
     const walletData = walletDoc.data();
 
-    const newBalance = walletData.balance + creditValue;
+    const newBalance = walletData.balance + value;
     await walletDoc.ref.update({ balance: newBalance });
 
     await this.firestore.collection('transactions').add({
-      walletCode,
-      value: creditValue,
+      code,
+      value: value,
       type: 'credit',
       date: FieldValue.serverTimestamp(),
     });
@@ -101,10 +101,10 @@ export class FirestoreService {
     return { message: 'Crédito adicionado com sucesso' };
   }
 
-  async debit(walletCode: number, debitValue: number): Promise<any> {
+  async debit(code: number, value: number): Promise<any> {
     const walletRef = this.firestore
       .collection('wallets')
-      .where('code', '==', walletCode)
+      .where('code', '==', code)
       .limit(1);
     const walletSnapshot = await walletRef.get();
 
@@ -115,16 +115,16 @@ export class FirestoreService {
     const walletDoc = walletSnapshot.docs[0];
     const walletData = walletDoc.data();
 
-    if (walletData.balance < debitValue) {
+    if (walletData.balance < value) {
       throw new Error('Saldo insuficiente');
     }
 
-    const newBalance = walletData.balance - debitValue;
+    const newBalance = walletData.balance - value;
     await walletDoc.ref.update({ balance: newBalance });
 
     await this.firestore.collection('transactions').add({
-      walletCode,
-      value: debitValue,
+      code,
+      value: value,
       type: 'debit',
       date: FieldValue.serverTimestamp(),
     });

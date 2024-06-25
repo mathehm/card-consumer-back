@@ -1,11 +1,10 @@
 import { Module } from '@nestjs/common';
-import { WalletController } from './app.controller';
 import { AppService } from './app.service';
-import { FirestoreModule } from './firestore/firestore.module';
+import { WalletModule } from './wallet/wallet.module';
 
 @Module({
-  imports: [FirestoreModule],
-  controllers: [WalletController],
+  imports: [WalletModule],
+  controllers: [],
   providers: [AppService],
 })
 export class AppModule { }

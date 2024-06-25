@@ -1,10 +1,12 @@
-import { Module, Global } from '@nestjs/common';
+import { Module } from '@nestjs/common';
+import { WalletService } from './wallet.service';
+import { WalletController } from './wallet.controller';
 import { Firestore } from '@google-cloud/firestore';
-import { FirestoreService } from './firestore.service';
 
-@Global()
 @Module({
+  controllers: [WalletController],
   providers: [
+    WalletService,
     {
       provide: Firestore,
       useFactory: () => {
@@ -14,8 +16,6 @@ import { FirestoreService } from './firestore.service';
         });
       },
     },
-    FirestoreService,
   ],
-  exports: [FirestoreService],
 })
-export class FirestoreModule { }
+export class WalletModule { }
