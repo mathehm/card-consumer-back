@@ -21,7 +21,7 @@ export class WalletController {
       const result = await this.walletService.create(createWalletDto);
       return result;
     } catch (error) {
-      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -41,7 +41,7 @@ export class WalletController {
       const result = await this.walletService.remove(+code);
       return result;
     } catch (error) {
-      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -51,7 +51,7 @@ export class WalletController {
       const result = await this.walletService.credit(+code, value);
       return result;
     } catch (error) {
-      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -61,7 +61,7 @@ export class WalletController {
       const result = await this.walletService.debit(+code, value);
       return result;
     } catch (error) {
-      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 }
