@@ -11,11 +11,22 @@ export class WalletService {
     await userRef.set(createWalletDto.user);
 
     const walletRef = this.firestore.collection('wallets').doc();
+    const balance = createWalletDto.balance || 0;
+
     await walletRef.set({
       code: createWalletDto.code,
-      balance: createWalletDto.balance || 0,
+      balance: balance,
       userId: userRef.id,
     });
+
+    if (balance > 0) {
+      await this.firestore.collection('transactions').add({
+        code: createWalletDto.code,
+        value: balance,
+        type: 'credit',
+        date: FieldValue.serverTimestamp(),
+      });
+    }
 
     return { message: 'Carteira criada com sucesso' };
   }
@@ -101,7 +112,7 @@ export class WalletService {
     return { message: 'Crédito adicionado com sucesso' };
   }
 
-  async debit(code: number, value: number): Promise<any> {
+  async debit(code: number, value: number, products: any[]): Promise<any> {
     const walletRef = this.firestore
       .collection('wallets')
       .where('code', '==', code)
@@ -127,8 +138,68 @@ export class WalletService {
       value: value,
       type: 'debit',
       date: FieldValue.serverTimestamp(),
+      products: products,
     });
 
     return { message: 'Débito realizado com sucesso' };
+  }
+
+  async getAllLotteryEntries(): Promise<any[]> {
+    const walletsSnapshot = await this.firestore.collection('wallets').get();
+    const lotteryEntries: any[] = [];
+
+    for (const walletDoc of walletsSnapshot.docs) {
+      const walletData = walletDoc.data();
+
+      const userRef = this.firestore.collection('users').doc(walletData.userId);
+      const userSnapshot = await userRef.get();
+
+      if (!userSnapshot.exists) {
+        throw new Error('Usuário não encontrado');
+      }
+
+      const userData = userSnapshot.data();
+
+      const transactionsRef = this.firestore
+        .collection('transactions')
+        .where('code', '==', walletData.code)
+        .where('type', '==', 'credit');
+      const transactionsSnapshot = await transactionsRef.get();
+
+      const totalCredit = transactionsSnapshot.docs.reduce((sum, doc) => {
+        const transaction = doc.data();
+        return sum + transaction.value;
+      }, 0);
+
+      const numberOfEntries = Math.floor(totalCredit / 50);
+
+      const wallet = {
+        code: walletData.code,
+        balance: walletData.balance,
+        user: userData,
+        transactions: transactionsSnapshot.docs.map((doc) => doc.data()),
+      };
+
+      for (let i = 0; i < numberOfEntries; i++) {
+        lotteryEntries.push({ userId: walletData.userId, wallet });
+      }
+    }
+
+    return lotteryEntries;
+  }
+
+  async getTotalCreditedAmount(): Promise<number> {
+    const transactionsRef = await this.firestore
+      .collection('transactions')
+      .where('type', '==', 'credit');
+
+    const transactionsSnapshot = await transactionsRef.get();
+
+    const totalCredited = transactionsSnapshot.docs.reduce((sum, doc) => {
+      const transaction = doc.data();
+      return sum + transaction.value;
+    }, 0);
+
+    return totalCredited;
   }
 }
