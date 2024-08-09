@@ -203,11 +203,11 @@ export class WalletService {
     const transactionsSnapshot = await transactionsRef.get();
 
     let totalCredited = 0;
-    const productSummary: {
-      product: string;
-      totalQuantity: number;
-      totalValue: number;
-    }[] = [];
+
+    const productMap = new Map<
+      string,
+      { totalQuantity: number; totalValue: number }
+    >();
 
     transactionsSnapshot.forEach((doc) => {
       const transaction = doc.data();
@@ -215,16 +215,12 @@ export class WalletService {
 
       if (transaction.products && Array.isArray(transaction.products)) {
         transaction.products.forEach((product: any) => {
-          const existingProduct = productSummary.find(
-            (item) => item.product === product.name,
-          );
-
-          if (existingProduct) {
+          if (productMap.has(product.name)) {
+            const existingProduct = productMap.get(product.name);
             existingProduct.totalQuantity += product.quantity;
             existingProduct.totalValue += product.price * product.quantity;
           } else {
-            productSummary.push({
-              product: product.name,
+            productMap.set(product.name, {
               totalQuantity: product.quantity,
               totalValue: product.price * product.quantity,
             });
@@ -232,6 +228,15 @@ export class WalletService {
         });
       }
     });
+
+    const productSummary = Array.from(
+      productMap,
+      ([product, { totalQuantity, totalValue }]) => ({
+        product,
+        totalQuantity,
+        totalValue,
+      }),
+    );
 
     return {
       totalCredited,
