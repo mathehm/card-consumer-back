@@ -79,11 +79,11 @@ export class WalletController {
     }
   }
 
-  @Get('/total-credited')
-  async getTotalCreditedAmount() {
+  @Get('/sales-report')
+  async getSalesReport() {
     try {
-      const totalCredited = await this.walletService.getTotalCreditedAmount();
-      return { totalCredited };
+      const result = await this.walletService.getTotalCreditedAmount();
+      return result;
     } catch (error) {
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }

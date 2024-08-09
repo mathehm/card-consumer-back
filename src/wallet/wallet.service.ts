@@ -188,18 +188,54 @@ export class WalletService {
     return lotteryEntries;
   }
 
-  async getTotalCreditedAmount(): Promise<number> {
-    const transactionsRef = await this.firestore
+  async getTotalCreditedAmount(): Promise<{
+    totalCredited: number;
+    productSummary: {
+      product: string;
+      totalQuantity: number;
+      totalValue: number;
+    }[];
+  }> {
+    const transactionsRef = this.firestore
       .collection('transactions')
       .where('type', '==', 'credit');
 
     const transactionsSnapshot = await transactionsRef.get();
 
-    const totalCredited = transactionsSnapshot.docs.reduce((sum, doc) => {
-      const transaction = doc.data();
-      return sum + transaction.value;
-    }, 0);
+    let totalCredited = 0;
+    const productSummary: {
+      product: string;
+      totalQuantity: number;
+      totalValue: number;
+    }[] = [];
 
-    return totalCredited;
+    transactionsSnapshot.forEach((doc) => {
+      const transaction = doc.data();
+      totalCredited += transaction.value;
+
+      if (transaction.products && Array.isArray(transaction.products)) {
+        transaction.products.forEach((product: any) => {
+          const existingProduct = productSummary.find(
+            (item) => item.product === product.name,
+          );
+
+          if (existingProduct) {
+            existingProduct.totalQuantity += product.quantity;
+            existingProduct.totalValue += product.price * product.quantity;
+          } else {
+            productSummary.push({
+              product: product.name,
+              totalQuantity: product.quantity,
+              totalValue: product.price * product.quantity,
+            });
+          }
+        });
+      }
+    });
+
+    return {
+      totalCredited,
+      productSummary,
+    };
   }
 }
