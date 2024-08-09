@@ -198,7 +198,7 @@ export class WalletService {
   }> {
     const transactionsRef = this.firestore
       .collection('transactions')
-      .where('type', '==', 'credit');
+      .where('type', 'in', ['credit', 'debit']);
 
     const transactionsSnapshot = await transactionsRef.get();
 
@@ -211,12 +211,17 @@ export class WalletService {
 
     transactionsSnapshot.forEach((doc) => {
       const transaction = doc.data();
-      totalCredited += transaction.value;
 
-      if (transaction.products && Array.isArray(transaction.products)) {
+      if (transaction.type === 'credit') {
+        totalCredited += transaction.value;
+      } else if (
+        transaction.type === 'debit' &&
+        transaction.products &&
+        Array.isArray(transaction.products)
+      ) {
         transaction.products.forEach((product: any) => {
-          if (productMap.has(product.name)) {
-            const existingProduct = productMap.get(product.name);
+          const existingProduct = productMap.get(product.name);
+          if (existingProduct) {
             existingProduct.totalQuantity += product.quantity;
             existingProduct.totalValue += product.price * product.quantity;
           } else {
