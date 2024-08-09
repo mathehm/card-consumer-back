@@ -15,6 +15,26 @@ import { CreateWalletDto } from './dto/create-wallet.dto';
 export class WalletController {
   constructor(private readonly walletService: WalletService) { }
 
+  @Get('/lottery-entries')
+  async getAllLotteryEntries() {
+    try {
+      const result = await this.walletService.getAllLotteryEntries();
+      return result;
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @Get('/sales-report')
+  async getSalesReport() {
+    try {
+      const result = await this.walletService.getTotalCreditedAmount();
+      return result;
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
   @Post('register')
   async create(@Body() createWalletDto: CreateWalletDto) {
     try {
@@ -63,26 +83,6 @@ export class WalletController {
   ) {
     try {
       const result = await this.walletService.debit(+code, value, products);
-      return result;
-    } catch (error) {
-      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-  }
-
-  @Get('/lottery-entries')
-  async getAllLotteryEntries() {
-    try {
-      const result = await this.walletService.getAllLotteryEntries();
-      return result;
-    } catch (error) {
-      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-  }
-
-  @Get('/sales-report')
-  async getSalesReport() {
-    try {
-      const result = await this.walletService.getTotalCreditedAmount();
       return result;
     } catch (error) {
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
