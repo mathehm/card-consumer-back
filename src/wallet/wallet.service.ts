@@ -57,7 +57,9 @@ export class WalletService {
 
     const transactionsRef = this.firestore
       .collection('transactions')
-      .where('code', '==', code);
+      .where('code', '==', code)
+      .orderBy('date', 'desc');
+
     const transactionsSnapshot = await transactionsRef.get();
     const transactions = transactionsSnapshot.docs.map((doc) => doc.data());
 
