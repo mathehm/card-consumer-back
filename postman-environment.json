@@ -1,0 +1,19 @@
+{
+  "id": "card-consumer-local",
+  "name": "Card Consumer - Local",
+  "values": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "walletCode",
+      "value": "12345",
+      "type": "default",
+      "enabled": true
+    }
+  ],
+  "_postman_variable_scope": "environment"
+}
