@@ -5,63 +5,67 @@ import {
   Body,
   Param,
   Delete,
-  HttpException,
-  HttpStatus,
+  UseInterceptors,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { WalletService } from './wallet.service';
 import { CreateWalletDto } from './dto/create-wallet.dto';
+import { TransferDto } from './dto/transfer.dto';
+import { CancelTransactionDto } from './dto/cancel-transaction.dto';
+import { PerformanceInterceptor } from '../common/interceptors/performance.interceptor';
+import { ErrorInterceptor } from '../common/interceptors/error.interceptor';
 
 @Controller('wallet')
+@UseInterceptors(PerformanceInterceptor, ErrorInterceptor)
 export class WalletController {
   constructor(private readonly walletService: WalletService) { }
 
   @Post('register')
   async create(@Body() createWalletDto: CreateWalletDto) {
-    try {
-      const result = await this.walletService.create(createWalletDto);
-      return result;
-    } catch (error) {
-      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    return await this.walletService.create(createWalletDto);
   }
 
   @Get(':code')
-  async findOne(@Param('code') code: string) {
-    try {
-      const result = await this.walletService.findOne(+code);
-      return result;
-    } catch (error) {
-      throw new HttpException(error.message, HttpStatus.NOT_FOUND);
-    }
+  async findOne(@Param('code', ParseIntPipe) code: number) {
+    return await this.walletService.findOne(code);
   }
 
   @Delete(':code')
-  async remove(@Param('code') code: string) {
-    try {
-      const result = await this.walletService.remove(+code);
-      return result;
-    } catch (error) {
-      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+  async remove(@Param('code', ParseIntPipe) code: number) {
+    return await this.walletService.remove(code);
   }
 
   @Post(':code/credit')
-  async credit(@Param('code') code: number, @Body('value') value: number) {
-    try {
-      const result = await this.walletService.credit(+code, value);
-      return result;
-    } catch (error) {
-      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+  async credit(
+    @Param('code', ParseIntPipe) code: number, 
+    @Body('value') value: number
+  ) {
+    return await this.walletService.credit(code, value);
   }
 
   @Post(':code/debit')
-  async debit(@Param('code') code: number, @Body('value') value: number) {
-    try {
-      const result = await this.walletService.debit(+code, value);
-      return result;
-    } catch (error) {
-      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+  async debit(
+    @Param('code', ParseIntPipe) code: number, 
+    @Body('value') value: number
+  ) {
+    return await this.walletService.debit(code, value);
+  }
+
+  @Post(':code/transfer')
+  async transfer(
+    @Param('code', ParseIntPipe) code: number, 
+    @Body() transferDto: TransferDto
+  ) {
+    return await this.walletService.transfer(code, transferDto);
+  }
+
+  @Post(':code/cancel-transaction')
+  async cancelTransaction(
+    @Param('code', ParseIntPipe) code: number, 
+    @Body() cancelDto: CancelTransactionDto
+  ) {
+    return await this.walletService.cancelTransaction(code, cancelDto);
   }
 }
+
+

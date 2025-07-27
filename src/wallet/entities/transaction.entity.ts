@@ -6,11 +6,16 @@ enum TransactionType {
 }
 
 export class Transaction {
-  id: number;
+  id?: string;  // ID nativo do Firestore
   value: number;
   type: TransactionType;
   date: string;
   description?: string;
   relatedWalletCode?: number;
   transferId?: string;
+  
+  // Campos para cancelamento
+  status?: 'active' | 'cancelled';
+  cancelledAt?: Date;
+  cancellationReason?: string;
 }
