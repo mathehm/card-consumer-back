@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "Card Consumer API - Wallet",
-    "description": "Collection para testar a API de carteira digital com transações atômicas",
+    "name": "Card Consumer API - Complete",
+    "description": "Collection completa para testar a API de carteira digital com produtos e relatórios",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -69,7 +69,7 @@
           "response": []
         },
         {
-          "name": "4. Realizar Débito",
+          "name": "4. Débito com Produtos",
           "request": {
             "method": "POST",
             "header": [
@@ -80,19 +80,42 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"value\": 25.00\n}"
+              "raw": "{\n  \"items\": [\n    {\n      \"productId\": \"{{productId1}}\",\n      \"quantity\": 2\n    },\n    {\n      \"productId\": \"{{productId2}}\",\n      \"quantity\": 1\n    }\n  ]\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/wallet/{{walletCode}}/debit",
               "host": ["{{baseUrl}}"],
               "path": ["wallet", "{{walletCode}}", "debit"]
             },
-            "description": "Realiza débito da carteira. Operação com transação atômica e verificação de saldo."
+            "description": "Realiza débito com produtos. Backend calcula valor total automaticamente."
           },
           "response": []
         },
         {
-          "name": "5. Transferir Saldo",
+          "name": "5. Débito do Sistema",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"value\": 15.00\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/wallet/{{walletCode}}/debit",
+              "host": ["{{baseUrl}}"],
+              "path": ["wallet", "{{walletCode}}", "debit"]
+            },
+            "description": "Realiza débito do sistema (sem produtos) para casos especiais."
+          },
+          "response": []
+        },
+        {
+          "name": "6. Transferir Saldo",
           "request": {
             "method": "POST",
             "header": [
@@ -110,12 +133,35 @@
               "host": ["{{baseUrl}}"],
               "path": ["wallet", "{{walletCode}}", "transfer"]
             },
-            "description": "Transfere saldo entre carteiras. Operação com transação atômica, descrições automáticas e ID único."
+            "description": "Transfere saldo entre carteiras. Operação com transação atômica."
           },
           "response": []
         },
         {
-          "name": "6. Remover Carteira",
+          "name": "7. Cancelar Transação",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"{{transactionId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/wallet/{{walletCode}}/cancel-transaction",
+              "host": ["{{baseUrl}}"],
+              "path": ["wallet", "{{walletCode}}", "cancel-transaction"]
+            },
+            "description": "Cancela uma transação específica e reverte seus efeitos automaticamente."
+          },
+          "response": []
+        },
+        {
+          "name": "8. Remover Carteira",
           "request": {
             "method": "DELETE",
             "header": [],
@@ -125,6 +171,186 @@
               "path": ["wallet", "{{walletCode}}"]
             },
             "description": "Remove completamente a carteira. Operação com transação atômica (carteira + usuário + transações)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Product Management",
+      "item": [
+        {
+          "name": "1. Criar Produto",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Refrigerante\",\n  \"category\": \"Bebidas\",\n  \"currentPrice\": 5.0\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/products",
+              "host": ["{{baseUrl}}"],
+              "path": ["products"]
+            },
+            "description": "Cria um novo produto no sistema."
+          },
+          "response": []
+        },
+        {
+          "name": "2. Listar Todos os Produtos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products",
+              "host": ["{{baseUrl}}"],
+              "path": ["products"]
+            },
+            "description": "Lista todos os produtos (ativos e inativos)."
+          },
+          "response": []
+        },
+        {
+          "name": "3. Listar Produtos Ativos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products/active",
+              "host": ["{{baseUrl}}"],
+              "path": ["products", "active"]
+            },
+            "description": "Lista apenas produtos ativos (disponíveis para venda). ROTA MAIS USADA PELO FRONTEND."
+          },
+          "response": []
+        },
+        {
+          "name": "4. Obter Produto por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["products", "{{productId}}"]
+            },
+            "description": "Obtém detalhes de um produto específico."
+          },
+          "response": []
+        },
+        {
+          "name": "5. Atualizar Produto",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Refrigerante Premium\",\n  \"currentPrice\": 7.0\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/products/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["products", "{{productId}}"]
+            },
+            "description": "Atualiza dados do produto. Cache é invalidado automaticamente."
+          },
+          "response": []
+        },
+        {
+          "name": "6. Remover Produto (Soft Delete)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["products", "{{productId}}"]
+            },
+            "description": "Remove produto (soft delete - marca como inativo). Vendas antigas continuam válidas."
+          },
+          "response": []
+        },
+        {
+          "name": "7. Ativar Produto",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products/{{productId}}/activate",
+              "host": ["{{baseUrl}}"],
+              "path": ["products", "{{productId}}", "activate"]
+            },
+            "description": "Reativa um produto que foi removido (soft delete)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Sales Reports",
+      "item": [
+        {
+          "name": "1. Vendas de Hoje",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reports/sales-today",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", "sales-today"]
+            },
+            "description": "Relatório completo de vendas do dia atual com resumo por produto."
+          },
+          "response": []
+        },
+        {
+          "name": "2. Histórico por Produto",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reports/sales-by-product/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", "sales-by-product", "{{productId}}"]
+            },
+            "description": "Histórico completo de vendas de um produto específico com diferentes preços."
+          },
+          "response": []
+        },
+        {
+          "name": "3. Vendas por Período",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reports/sales-by-period?startDate=2025-01-01&endDate=2025-01-31",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", "sales-by-period"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2025-01-01",
+                  "description": "Data inicial (YYYY-MM-DD)"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2025-01-31",
+                  "description": "Data final (YYYY-MM-DD)"
+                }
+              ]
+            },
+            "description": "Relatório de vendas em período específico com resumo por dia."
           },
           "response": []
         }
@@ -180,26 +406,58 @@
           "response": []
         },
         {
-          "name": "Teste: Carteira Inexistente",
+          "name": "Teste: Produto Inexistente na Venda",
           "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/wallet/99999",
-              "host": ["{{baseUrl}}"],
-              "path": ["wallet", "99999"]
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"productId\": \"produto-inexistente\",\n      \"quantity\": 1\n    }\n  ]\n}"
             },
-            "description": "Consulta carteira que não existe. Deve retornar erro 404."
+            "url": {
+              "raw": "{{baseUrl}}/wallet/{{walletCode}}/debit",
+              "host": ["{{baseUrl}}"],
+              "path": ["wallet", "{{walletCode}}", "debit"]
+            },
+            "description": "Tenta vender produto que não existe. Deve retornar erro."
+          },
+          "response": []
+        },
+        {
+          "name": "Teste: Produto Inativo na Venda",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"productId\": \"{{inactiveProductId}}\",\n      \"quantity\": 1\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/wallet/{{walletCode}}/debit",
+              "host": ["{{baseUrl}}"],
+              "path": ["wallet", "{{walletCode}}", "debit"]
+            },
+            "description": "Tenta vender produto inativo. Deve retornar erro."
           },
           "response": []
         }
       ]
     },
     {
-      "name": "Testes de Múltiplas Carteiras",
+      "name": "Fluxo Completo de Teste",
       "item": [
         {
-          "name": "Criar Carteira A",
+          "name": "1. Setup: Criar Produtos",
           "request": {
             "method": "POST",
             "header": [
@@ -210,18 +468,56 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"code\": 11111,\n  \"balance\": 500,\n  \"user\": {\n    \"name\": \"Ana Costa\",\n    \"phone\": \"(11) 77777-7777\"\n  }\n}"
+              "raw": "{\n  \"name\": \"Refrigerante Teste\",\n  \"category\": \"Bebidas\",\n  \"currentPrice\": 5.0\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/products",
+              "host": ["{{baseUrl}}"],
+              "path": ["products"]
+            },
+            "description": "Primeiro: criar alguns produtos para teste"
+          },
+          "response": []
+        },
+        {
+          "name": "2. Setup: Criar Carteira",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": 98765,\n  \"balance\": 500.00,\n  \"user\": {\n    \"name\": \"Cliente Teste\",\n    \"phone\": \"(11) 12345-6789\"\n  }\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/wallet/register",
               "host": ["{{baseUrl}}"],
               "path": ["wallet", "register"]
-            }
+            },
+            "description": "Segundo: criar carteira com saldo"
           },
           "response": []
         },
         {
-          "name": "Criar Carteira B",
+          "name": "3. Buscar Produtos Ativos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products/active",
+              "host": ["{{baseUrl}}"],
+              "path": ["products", "active"]
+            },
+            "description": "Terceiro: listar produtos disponíveis (copiar IDs para próximos testes)"
+          },
+          "response": []
+        },
+        {
+          "name": "4. Fazer Venda com Produtos",
           "request": {
             "method": "POST",
             "header": [
@@ -232,80 +528,42 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"code\": 22222,\n  \"balance\": 300,\n  \"user\": {\n    \"name\": \"Carlos Oliveira\",\n    \"phone\": \"(11) 66666-6666\"\n  }\n}"
+              "raw": "{\n  \"items\": [\n    {\n      \"productId\": \"COLAR_ID_DO_PRODUTO_AQUI\",\n      \"quantity\": 3\n    }\n  ]\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/wallet/register",
+              "raw": "{{baseUrl}}/wallet/98765/debit",
               "host": ["{{baseUrl}}"],
-              "path": ["wallet", "register"]
-            }
+              "path": ["wallet", "98765", "debit"]
+            },
+            "description": "Quarto: fazer venda (colar ID do produto da etapa anterior)"
           },
           "response": []
         },
         {
-          "name": "Transações na Carteira A",
+          "name": "5. Verificar Saldo Atualizado",
           "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"value\": 100\n}"
-            },
+            "method": "GET",
+            "header": [],
             "url": {
-              "raw": "{{baseUrl}}/wallet/11111/credit",
+              "raw": "{{baseUrl}}/wallet/98765",
               "host": ["{{baseUrl}}"],
-              "path": ["wallet", "11111", "credit"]
-            }
+              "path": ["wallet", "98765"]
+            },
+            "description": "Quinto: verificar se saldo foi debitado e transação registrada"
           },
           "response": []
         },
         {
-          "name": "Transações na Carteira B",
+          "name": "6. Ver Relatório de Hoje",
           "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"value\": 50\n}"
-            },
+            "method": "GET",
+            "header": [],
             "url": {
-              "raw": "{{baseUrl}}/wallet/22222/debit",
+              "raw": "{{baseUrl}}/reports/sales-today",
               "host": ["{{baseUrl}}"],
-              "path": ["wallet", "22222", "debit"]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "8. Cancelar Transação",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"transactionId\": \"FIRESTORE_TRANSACTION_ID_AQUI\"\n}"
+              "path": ["reports", "sales-today"]
             },
-            "url": {
-              "raw": "{{baseUrl}}/wallet/{{walletCode}}/cancel-transaction",
-              "host": ["{{baseUrl}}"],
-              "path": ["wallet", "{{walletCode}}", "cancel-transaction"]
-            },
-            "description": "Cancela uma transação específica e reverte seus efeitos automaticamente. As descrições são geradas automaticamente pelo backend. Requer apenas o ID da transação (obtido na consulta da carteira)."
+            "description": "Sexto: verificar se venda aparece no relatório"
           },
           "response": []
         }
@@ -321,6 +579,33 @@
     {
       "key": "walletCode",
       "value": "12345",
+      "type": "string"
+    },
+    {
+      "key": "productId",
+      "value": "PRODUTO_ID_AQUI",
+      "type": "string",
+      "description": "ID do produto (obtido após criar produto)"
+    },
+    {
+      "key": "productId1",
+      "value": "PRODUTO1_ID_AQUI",
+      "type": "string"
+    },
+    {
+      "key": "productId2",
+      "value": "PRODUTO2_ID_AQUI",
+      "type": "string"
+    },
+    {
+      "key": "transactionId",
+      "value": "TRANSACTION_ID_AQUI",
+      "type": "string",
+      "description": "ID da transação (obtido após fazer débito/venda)"
+    },
+    {
+      "key": "inactiveProductId",
+      "value": "PRODUTO_INATIVO_ID_AQUI",
       "type": "string"
     }
   ]

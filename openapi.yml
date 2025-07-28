@@ -1,12 +1,16 @@
-openapi: '3.0.2'
+openapi: 3.0.3
 info:
   title: API Card Consumer
-  version: '1.0'
+  version: '2.0'
+  description: API para gerenciamento de carteiras digitais com sistema de produtos e vendas
 servers:
   - url: https://api.server.test/v1
 paths:
+  # === WALLET ROUTES ===
   /wallet/register:
     post:
+      tags:
+        - Wallet
       summary: Registrar uma nova carteira
       requestBody:
         required: true
@@ -26,10 +30,10 @@ paths:
                   properties:
                     name:
                       type: string
-                      example: 'John Doe'
+                      example: 'João Silva'
                     phone:
                       type: string
-                      example: '1234567890'
+                      example: '(11) 99999-9999'
               required:
                 - code
                 - user
@@ -44,8 +48,11 @@ paths:
                   message:
                     type: string
                     example: 'Carteira criada com sucesso'
+
   /wallet/{code}/credit:
     post:
+      tags:
+        - Wallet
       summary: Adicionar crédito na carteira
       parameters:
         - in: path
@@ -77,9 +84,135 @@ paths:
                   message:
                     type: string
                     example: 'Crédito adicionado com sucesso'
+
   /wallet/{code}/debit:
     post:
-      summary: Realizar débito na carteira
+      tags:
+        - Wallet
+      summary: Realizar débito na carteira (com produtos ou valor simples)
+      parameters:
+        - in: path
+          name: code
+          schema:
+            type: number
+          required: true
+          description: Código da carteira
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  properties:
+                    items:
+                      type: array
+                      description: Lista de produtos para débito
+                      items:
+                        type: object
+                        properties:
+                          productId:
+                            type: string
+                            example: "abc123def456"
+                          quantity:
+                            type: number
+                            example: 2
+                        required:
+                          - productId
+                          - quantity
+                  required:
+                    - items
+                  example:
+                    items:
+                      - productId: "abc123def456"
+                        quantity: 2
+                      - productId: "def789ghi012"
+                        quantity: 1
+                - type: object
+                  properties:
+                    value:
+                      type: number
+                      description: Valor para débito do sistema (quando não há produtos)
+                      example: 10.50
+                  required:
+                    - value
+                  example:
+                    value: 10.50
+      responses:
+        '202':
+          description: Débito realizado com sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Débito realizado com sucesso'
+                  transactionId:
+                    type: string
+                    example: 'trans123abc'
+                  totalValue:
+                    type: number
+                    example: 27.50
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        productId:
+                          type: string
+                          example: "abc123def456"
+                        productName:
+                          type: string
+                          example: "Refrigerante"
+                        priceAtSale:
+                          type: number
+                          example: 5.0
+                        quantity:
+                          type: number
+                          example: 2
+                        subtotal:
+                          type: number
+                          example: 10.0
+
+  /wallet/{code}/transfer:
+    post:
+      tags:
+        - Wallet
+      summary: Transferir saldo entre carteiras
+      parameters:
+        - in: path
+          name: code
+          schema:
+            type: number
+          required: true
+          description: Código da carteira origem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                toCode:
+                  type: number
+                  example: 67890
+                value:
+                  type: number
+                  example: 25.00
+              required:
+                - toCode
+                - value
+      responses:
+        '202':
+          description: Transferência realizada com sucesso
+
+  /wallet/{code}/cancel-transaction:
+    post:
+      tags:
+        - Wallet
+      summary: Cancelar uma transação específica
       parameters:
         - in: path
           name: code
@@ -94,24 +227,19 @@ paths:
             schema:
               type: object
               properties:
-                value:
-                  type: number
-                  example: 100.50
+                transactionId:
+                  type: string
+                  example: "trans123abc"
               required:
-                - value
+                - transactionId
       responses:
         '202':
-          description: Débito realizado com sucesso
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: 'Débito realizado com sucesso'
+          description: Transação cancelada com sucesso
+
   /wallet/{code}:
     get:
+      tags:
+        - Wallet
       summary: Obter informações da carteira pelo código
       parameters:
         - in: path
@@ -136,29 +264,35 @@ paths:
                     properties:
                       name:
                         type: string
-                        example: 'John Doe'
+                        example: 'João Silva'
                       phone:
                         type: string
-                        example: '1234567890'
+                        example: '(11) 99999-9999'
                   transactions:
                     type: array
                     items:
                       type: object
                       properties:
                         id:
-                          type: number
-                          example: 1
+                          type: string
+                          example: "trans123abc"
                         value:
                           type: number
                           example: 100.50
                         type:
                           type: string
-                          enum: [credit, debit]
+                          enum: [credit, debit, transfer]
                           example: 'credit'
                         date:
                           type: string
                           format: date-time
-                          example: '2024-06-11T12:00:00Z'
+                          example: '2025-01-28T12:00:00Z'
+                        hasProducts:
+                          type: boolean
+                          example: true
+                        itemsCount:
+                          type: number
+                          example: 3
         '404':
           description: Não encontrado
           content:
@@ -170,7 +304,9 @@ paths:
                     type: string
                     example: 'Carteira não encontrada'
     delete:
-      summary: Cancelar uma carteira
+      tags:
+        - Wallet
+      summary: Remover uma carteira
       parameters:
         - in: path
           name: code
@@ -180,4 +316,368 @@ paths:
           description: Código da carteira
       responses:
         '204':
-          description: Carteira cancelada com sucesso
+          description: Carteira removida com sucesso
+
+  # === PRODUCTS ROUTES ===
+  /products:
+    get:
+      tags:
+        - Products
+      summary: Listar todos os produtos
+      responses:
+        '200':
+          description: Lista de produtos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+    post:
+      tags:
+        - Products
+      summary: Criar um novo produto
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: "Refrigerante"
+                category:
+                  type: string
+                  example: "Bebidas"
+                currentPrice:
+                  type: number
+                  example: 5.0
+              required:
+                - name
+                - category
+                - currentPrice
+      responses:
+        '201':
+          description: Produto criado com sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Produto criado com sucesso'
+                  productId:
+                    type: string
+                    example: "abc123def456"
+
+  /products/active:
+    get:
+      tags:
+        - Products
+      summary: Listar produtos ativos (disponíveis para venda)
+      responses:
+        '200':
+          description: Lista de produtos ativos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+
+  /products/{id}:
+    get:
+      tags:
+        - Products
+      summary: Obter produto específico
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+          required: true
+          description: ID do produto
+      responses:
+        '200':
+          description: Produto encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '404':
+          description: Produto não encontrado
+
+    patch:
+      tags:
+        - Products
+      summary: Atualizar produto
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+          required: true
+          description: ID do produto
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: "Refrigerante Premium"
+                category:
+                  type: string
+                  example: "Bebidas"
+                currentPrice:
+                  type: number
+                  example: 7.0
+      responses:
+        '200':
+          description: Produto atualizado com sucesso
+
+    delete:
+      tags:
+        - Products
+      summary: Remover produto (soft delete)
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+          required: true
+          description: ID do produto
+      responses:
+        '200':
+          description: Produto removido com sucesso
+
+  /products/{id}/activate:
+    post:
+      tags:
+        - Products
+      summary: Ativar produto
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+          required: true
+          description: ID do produto
+      responses:
+        '200':
+          description: Produto ativado com sucesso
+
+  # === REPORTS ROUTES ===
+  /reports/sales-today:
+    get:
+      tags:
+        - Reports
+      summary: Relatório de vendas do dia atual
+      responses:
+        '200':
+          description: Relatório de vendas de hoje
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  date:
+                    type: string
+                    example: "2025-01-28"
+                  summary:
+                    type: object
+                    properties:
+                      totalValue:
+                        type: number
+                        example: 450.75
+                      totalItems:
+                        type: number
+                        example: 87
+                      totalTransactions:
+                        type: number
+                        example: 23
+                  products:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        productId:
+                          type: string
+                          example: "abc123def456"
+                        productName:
+                          type: string
+                          example: "Refrigerante"
+                        totalQuantity:
+                          type: number
+                          example: 45
+                        totalValue:
+                          type: number
+                          example: 225.0
+
+  /reports/sales-by-product/{productId}:
+    get:
+      tags:
+        - Reports
+      summary: Histórico de vendas por produto específico
+      parameters:
+        - in: path
+          name: productId
+          schema:
+            type: string
+          required: true
+          description: ID do produto
+      responses:
+        '200':
+          description: Histórico de vendas do produto
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  productId:
+                    type: string
+                    example: "abc123def456"
+                  productName:
+                    type: string
+                    example: "Refrigerante"
+                  summary:
+                    type: object
+                    properties:
+                      totalQuantity:
+                        type: number
+                        example: 150
+                      totalValue:
+                        type: number
+                        example: 750.0
+                      salesCount:
+                        type: number
+                        example: 45
+                  sales:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProductSale'
+
+  /reports/sales-by-period:
+    get:
+      tags:
+        - Reports
+      summary: Relatório de vendas por período
+      parameters:
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+          required: true
+          description: Data inicial (YYYY-MM-DD)
+          example: "2025-01-01"
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+          required: true
+          description: Data final (YYYY-MM-DD)
+          example: "2025-01-31"
+      responses:
+        '200':
+          description: Relatório de vendas por período
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  period:
+                    type: object
+                    properties:
+                      startDate:
+                        type: string
+                        example: "2025-01-01"
+                      endDate:
+                        type: string
+                        example: "2025-01-31"
+                  summary:
+                    type: object
+                    properties:
+                      totalValue:
+                        type: number
+                        example: 5450.75
+                      totalQuantity:
+                        type: number
+                        example: 987
+                      totalSales:
+                        type: number
+                        example: 234
+                      daysWithSales:
+                        type: number
+                        example: 28
+
+components:
+  schemas:
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "abc123def456"
+        name:
+          type: string
+          example: "Refrigerante"
+        category:
+          type: string
+          example: "Bebidas"
+        currentPrice:
+          type: number
+          example: 5.0
+        isActive:
+          type: boolean
+          example: true
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-01-28T10:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2025-01-28T10:00:00Z"
+
+    ProductSale:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "sale123abc"
+        transactionId:
+          type: string
+          example: "trans123abc"
+        productId:
+          type: string
+          example: "abc123def456"
+        productName:
+          type: string
+          example: "Refrigerante"
+        priceAtSale:
+          type: number
+          example: 5.0
+        quantity:
+          type: number
+          example: 2
+        subtotal:
+          type: number
+          example: 10.0
+        soldAt:
+          type: string
+          format: date-time
+          example: "2025-01-28T15:30:00Z"
+
+tags:
+  - name: Wallet
+    description: Operações de carteira digital
+  - name: Products
+    description: Gerenciamento de produtos
+  - name: Reports
+    description: Relatórios de vendas

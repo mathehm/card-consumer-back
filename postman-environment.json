@@ -13,6 +13,36 @@
       "value": "12345",
       "type": "default",
       "enabled": true
+    },
+    {
+      "key": "productId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "productId1",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "productId2",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "transactionId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "inactiveProductId",
+      "value": "",
+      "type": "default",
+      "enabled": true
     }
   ],
   "_postman_variable_scope": "environment"
