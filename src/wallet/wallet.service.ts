@@ -2,15 +2,19 @@ import { Inject, Injectable } from '@nestjs/common';
 import { CreateWalletDto } from './dto/create-wallet.dto';
 import { TransferDto } from './dto/transfer.dto';
 import { CancelTransactionDto } from './dto/cancel-transaction.dto';
+import { DebitDto } from './dto/debit.dto';
 import { FieldValue, Firestore } from '@google-cloud/firestore';
 import { v4 as uuidv4 } from 'uuid';
 import { CacheService } from '../common/services/cache.service';
+import { ProductService } from './product.service';
+import { ProductSale } from './entities/product-sale.entity';
 
 @Injectable()
 export class WalletService {
   constructor(
     @Inject(Firestore) private readonly firestore: Firestore,
-    private readonly cacheService: CacheService
+    private readonly cacheService: CacheService,
+    private readonly productService: ProductService
   ) { }
 
   async create(createWalletDto: CreateWalletDto): Promise<any> {
@@ -221,7 +225,41 @@ export class WalletService {
     return { message: 'Crédito adicionado com sucesso' };
   }
 
-  async debit(code: number, value: number): Promise<any> {
+  async debit(code: number, debitDto: DebitDto): Promise<any> {
+    let totalValue = 0;
+    let productSales: ProductSale[] = [];
+
+    // Se tem produtos, calcular valor e preparar vendas
+    if (debitDto.items && debitDto.items.length > 0) {
+      for (const item of debitDto.items) {
+        const product = await this.productService.findOne(item.productId);
+        
+        if (!product.isActive) {
+          throw new Error(`Produto "${product.name}" não está ativo`);
+        }
+
+        const subtotal = product.currentPrice * item.quantity;
+        totalValue += subtotal;
+
+        productSales.push({
+          productId: item.productId,
+          productName: product.name,
+          priceAtSale: product.currentPrice,
+          quantity: item.quantity,
+          subtotal: subtotal,
+          soldAt: new Date(),
+          transactionId: '', // Será preenchido depois
+        });
+      }
+    } else if (debitDto.value) {
+      // Débito do sistema sem produtos
+      totalValue = debitDto.value;
+    } else {
+      throw new Error('Deve informar produtos ou valor para débito');
+    }
+
+    let transactionId = '';
+
     // Usar transação atômica para garantir consistência
     await this.firestore.runTransaction(async (transaction) => {
       // Buscar a carteira dentro da transação
@@ -239,14 +277,20 @@ export class WalletService {
       const walletData = walletDoc.data();
 
       // Verificar saldo suficiente
-      if (walletData.balance < value) {
+      if (walletData.balance < totalValue) {
         throw new Error('Saldo insuficiente');
       }
 
-      const newBalance = walletData.balance - value;
+      const newBalance = walletData.balance - totalValue;
 
       // Criar referência para nova transação
       const transactionRef = this.firestore.collection('transactions').doc();
+      transactionId = transactionRef.id;
+
+      // Atualizar transactionId nos produtos vendidos
+      productSales.forEach(sale => {
+        sale.transactionId = transactionId;
+      });
 
       // Operações atômicas: atualizar saldo e registrar transação
       transaction.update(walletDoc.ref, { 
@@ -256,18 +300,53 @@ export class WalletService {
       
       transaction.set(transactionRef, {
         code,
-        value: value,
+        value: totalValue,
         type: 'debit',
         date: FieldValue.serverTimestamp(),
         walletId: walletDoc.id,
         status: 'active',
+        hasProducts: productSales.length > 0,
+        itemsCount: productSales.length,
       });
+
+      // Salvar produtos vendidos (se houver)
+      if (productSales.length > 0) {
+        for (const sale of productSales) {
+          const saleRef = this.firestore.collection('product-sales').doc();
+          transaction.set(saleRef, {
+            transactionId: sale.transactionId,
+            productId: sale.productId,
+            productName: sale.productName,
+            priceAtSale: sale.priceAtSale,
+            quantity: sale.quantity,
+            subtotal: sale.subtotal,
+            soldAt: FieldValue.serverTimestamp(),
+          });
+        }
+      }
     });
 
     // OTIMIZAÇÃO: Invalidar cache relacionado
     this.cacheService.invalidateWalletCache(code);
 
-    return { message: 'Débito realizado com sucesso' };
+    const response: any = { 
+      message: 'Débito realizado com sucesso',
+      transactionId,
+      totalValue,
+    };
+
+    // Incluir detalhes dos produtos se houver
+    if (productSales.length > 0) {
+      response.items = productSales.map(sale => ({
+        productId: sale.productId,
+        productName: sale.productName,
+        priceAtSale: sale.priceAtSale,
+        quantity: sale.quantity,
+        subtotal: sale.subtotal,
+      }));
+    }
+
+    return response;
   }
 
   async transfer(fromCode: number, transferDto: TransferDto): Promise<any> {

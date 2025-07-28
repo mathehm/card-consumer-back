@@ -12,6 +12,7 @@ import { WalletService } from './wallet.service';
 import { CreateWalletDto } from './dto/create-wallet.dto';
 import { TransferDto } from './dto/transfer.dto';
 import { CancelTransactionDto } from './dto/cancel-transaction.dto';
+import { DebitDto } from './dto/debit.dto';
 import { PerformanceInterceptor } from '../common/interceptors/performance.interceptor';
 import { ErrorInterceptor } from '../common/interceptors/error.interceptor';
 
@@ -46,9 +47,9 @@ export class WalletController {
   @Post(':code/debit')
   async debit(
     @Param('code', ParseIntPipe) code: number, 
-    @Body('value') value: number
+    @Body() debitDto: DebitDto
   ) {
-    return await this.walletService.debit(code, value);
+    return await this.walletService.debit(code, debitDto);
   }
 
   @Post(':code/transfer')
