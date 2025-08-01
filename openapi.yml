@@ -318,6 +318,140 @@ paths:
         '204':
           description: Carteira removida com sucesso
 
+  # === LOTTERY ROUTES ===
+  /wallet/lottery/draw:
+    post:
+      tags:
+        - Lottery
+      summary: Realizar sorteio da loteria
+      description: |
+        Realiza um sorteio entre todas as carteiras elegíveis. 
+        Cada valor especificado em valorPorEntrada equivale a 1 entrada no sorteio.
+        Apenas carteiras com alreadyWinner != true participam.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                valorPorEntrada:
+                  type: number
+                  example: 50
+                  description: Valor em reais que equivale a 1 entrada no sorteio
+              required:
+                - valorPorEntrada
+      responses:
+        '200':
+          description: Sorteio realizado com sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                nullable: true
+                description: Retorna o vencedor sorteado ou null se não há participantes elegíveis
+                properties:
+                  walletId:
+                    type: string
+                    example: "wallet123abc"
+                  code:
+                    type: number
+                    example: 12345
+                  balance:
+                    type: number
+                    example: 150.75
+                  totalCredit:
+                    type: number
+                    example: 200.00
+                  entries:
+                    type: number
+                    example: 4
+                    description: Número de entradas no sorteio
+                  user:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        example: "João Silva"
+                      phone:
+                        type: string
+                        example: "(11) 99999-9999"
+                  lotteryInfo:
+                    type: object
+                    properties:
+                      totalEntries:
+                        type: number
+                        example: 25
+                        description: Total de entradas no sorteio
+                      totalParticipants:
+                        type: number
+                        example: 8
+                        description: Número de participantes únicos
+                      valorPorEntrada:
+                        type: number
+                        example: 50
+                      drawnAt:
+                        type: string
+                        format: date-time
+                        example: "2025-01-28T15:30:00Z"
+                      winnerChance:
+                        type: string
+                        example: "16.00%"
+                        description: Porcentagem de chance que o vencedor tinha
+
+  /wallet/{code}/mark-winner:
+    post:
+      tags:
+        - Lottery
+      summary: Marcar carteira como vencedora
+      description: |
+        Marca uma carteira como vencedora após confirmação de presença.
+        Carteiras marcadas como vencedoras ficam inelegíveis para futuros sorteios.
+      parameters:
+        - in: path
+          name: code
+          schema:
+            type: number
+          required: true
+          description: Código da carteira vencedora
+      responses:
+        '200':
+          description: Carteira marcada como vencedora com sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Carteira marcada como vencedora com sucesso"
+                  walletCode:
+                    type: number
+                    example: 12345
+                  user:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        example: "João Silva"
+                      phone:
+                        type: string
+                        example: "(11) 99999-9999"
+                  markedAt:
+                    type: string
+                    format: date-time
+                    example: "2025-01-28T15:30:00Z"
+        '400':
+          description: Erro - Carteira já foi premiada ou não encontrada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Esta carteira já foi premiada anteriormente"
+
   # === PRODUCTS ROUTES ===
   /products:
     get:

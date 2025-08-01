@@ -161,7 +161,44 @@
           "response": []
         },
         {
-          "name": "8. Remover Carteira",
+          "name": "8. Sortear Vencedor da Loteria",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"valorPorEntrada\": {{valorPorEntrada}}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/wallet/lottery/draw",
+              "host": ["{{baseUrl}}"],
+              "path": ["wallet", "lottery", "draw"]
+            },
+            "description": "Realiza o sorteio da loteria. Cada R$ 50 de crédito = 1 entrada. Retorna o vencedor sorteado ou null se não há participantes válidos."
+          },
+          "response": []
+        },
+        {
+          "name": "9. Marcar Carteira como Vencedora",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/wallet/{{walletCode}}/mark-winner",
+              "host": ["{{baseUrl}}"],
+              "path": ["wallet", "{{walletCode}}", "mark-winner"]
+            },
+            "description": "Marca uma carteira como vencedora após confirmação de presença. Carteiras marcadas ficam inelegíveis para futuros sorteios."
+          },
+          "response": []
+        },
+        {
+          "name": "10. Remover Carteira",
           "request": {
             "method": "DELETE",
             "header": [],

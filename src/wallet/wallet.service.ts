@@ -44,6 +44,8 @@ export class WalletService {
         code: createWalletDto.code,
         balance: createWalletDto.balance || 0,
         userId: userRef.id,
+        totalCredit: createWalletDto.balance || 0,
+        alreadyWinner: false, // Nova carteira pode participar do sorteio
         createdAt: FieldValue.serverTimestamp(),
       };
 
@@ -108,6 +110,7 @@ export class WalletService {
 
       return {
         balance: walletData.balance,
+        totalCredit: walletData.totalCredit,
         user: userData,
         transactions,
         transactionCount: transactions.length,
@@ -156,24 +159,19 @@ export class WalletService {
         transaction.get(transactionsRef)
       ]);
 
-      // OTIMIZAÇÃO: Operações de delete em batch para melhor performance
-      const batch = this.firestore.batch();
-      
+      // OTIMIZAÇÃO: Usar operações da transação diretamente
       // Remover carteira
-      batch.delete(walletDoc.ref);
+      transaction.delete(walletDoc.ref);
       
       // Remover usuário se existir
       if (userSnapshot.exists) {
-        batch.delete(userRef);
+        transaction.delete(userRef);
       }
 
       // Remover todas as transações relacionadas
       transactionsSnapshot.docs.forEach((transactionDoc) => {
-        batch.delete(transactionDoc.ref);
+        transaction.delete(transactionDoc.ref);
       });
-
-      // OTIMIZAÇÃO: Usar batch.commit() em vez de transaction para deletes múltiplos
-      await batch.commit();
     });
 
     // OTIMIZAÇÃO: Invalidar cache relacionado
@@ -199,13 +197,15 @@ export class WalletService {
       const walletDoc = walletSnapshot.docs[0];
       const walletData = walletDoc.data();
       const newBalance = walletData.balance + value;
+      const newTotalCredit = (walletData.totalCredit || 0) + value;
 
       // Criar referência para nova transação
       const transactionRef = this.firestore.collection('transactions').doc();
 
-      // Operações atômicas: atualizar saldo e registrar transação
+      // Operações atômicas: atualizar saldo, totalCredit e registrar transação
       transaction.update(walletDoc.ref, { 
         balance: newBalance,
+        totalCredit: newTotalCredit,
         updatedAt: FieldValue.serverTimestamp()
       });
       
@@ -416,7 +416,7 @@ export class WalletService {
       const fromUserData = fromUserSnapshot.data();
       const toUserData = toUserSnapshot.data();
 
-      // Calcular novos saldos
+      // Calcular novos saldos (sem atualizar totalCredit em transferências)
       const newFromBalance = currentFromWalletData.balance - transferDto.value;
       const newToBalance = currentToWalletData.balance + transferDto.value;
 
@@ -431,7 +431,7 @@ export class WalletService {
       // OTIMIZAÇÃO: Operações atômicas otimizadas
       const batch = this.firestore.batch();
       
-      // Atualizar saldos
+      // Atualizar apenas os saldos (totalCredit não muda em transferências)
       batch.update(fromWalletDoc.ref, {
         balance: newFromBalance,
         updatedAt: FieldValue.serverTimestamp(),
@@ -620,9 +620,11 @@ export class WalletService {
         // Criar transação de reversão (débito)
         const reversalRef = this.firestore.collection('transactions').doc();
         const newBalance = currentWalletData.balance - currentTransactionData.value;
+        const newTotalCredit = Math.max(0, (currentWalletData.totalCredit || 0) - currentTransactionData.value);
 
         transaction.update(walletDoc.ref, {
           balance: newBalance,
+          totalCredit: newTotalCredit, // Ajustar totalCredit ao cancelar crédito
           updatedAt: FieldValue.serverTimestamp(),
         });
 
@@ -648,9 +650,11 @@ export class WalletService {
         // Criar transação de reversão (crédito)
         const reversalRef = this.firestore.collection('transactions').doc();
         const newBalance = currentWalletData.balance + currentTransactionData.value;
+        const newTotalCredit = (currentWalletData.totalCredit || 0) + currentTransactionData.value;
 
         transaction.update(walletDoc.ref, {
           balance: newBalance,
+          totalCredit: newTotalCredit, // Ajustar totalCredit ao cancelar débito (volta como crédito)
           updatedAt: FieldValue.serverTimestamp(),
         });
 
@@ -690,7 +694,7 @@ export class WalletService {
           });
         });
 
-        // Reverter saldos
+        // Reverter apenas os saldos (totalCredit não muda em transferências)
         const newFromBalance = fromWalletData.balance + currentTransactionData.value;
         const newToBalance = toWalletData.balance - currentTransactionData.value;
 
@@ -756,5 +760,191 @@ export class WalletService {
       transactionId: cancelDto.transactionId,
       operation: 'Cancelamento processado automaticamente pelo sistema'
     };
+  }
+
+  async getNextLotteryWinner(valorPorEntrada: number): Promise<any | null> {
+    try {
+      // OTIMIZAÇÃO: Buscar todas as carteiras (não filtrar por alreadyWinner na consulta)
+      // Firestore não retorna docs sem o campo quando usa "!=" 
+      const walletsRef = this.firestore.collection('wallets');
+      
+      const walletsSnapshot = await walletsRef.get();
+
+      if (walletsSnapshot.empty) {
+        return null; // Não há carteiras no sistema
+      }
+
+      // Array para armazenar todas as entradas do sorteio
+      const lotteryEntries: any[] = [];
+      
+      // Preparar promessas para buscar dados de usuário em paralelo
+      const walletPromises = walletsSnapshot.docs.map(async (walletDoc) => {
+        const walletData = walletDoc.data();
+        
+        // TRATAMENTO: Verificar se já é vencedora (undefined = pode participar)
+        if (walletData.alreadyWinner === true) {
+          return null; // Pular carteiras que já venceram
+        }
+        
+        // Buscar dados do usuário
+        const userSnapshot = await this.firestore.collection('users').doc(walletData.userId).get();
+        
+        if (!userSnapshot.exists) {
+          return null; // Pular carteiras sem usuário válido
+        }
+
+        const userData = userSnapshot.data();
+
+        // COMPATIBILIDADE: Calcular totalCredit dinamicamente se não existir
+        let totalCredit = walletData.totalCredit;
+        
+        if (totalCredit === undefined) {
+          return null;
+        }
+
+        // Calcular número de entradas no sorteio
+        const entries = Math.floor(totalCredit / valorPorEntrada);
+
+        // Se a carteira tem pelo menos 1 entrada, preparar dados
+        if (entries > 0) {
+          return {
+            walletId: walletDoc.id,
+            code: walletData.code,
+            balance: walletData.balance,
+            totalCredit: totalCredit,
+            entries: entries,
+            user: {
+              name: userData.name,
+              phone: userData.phone
+            },
+            createdAt: walletData.createdAt
+          };
+        }
+
+        return null;
+      });
+
+      // Aguardar todos os processamentos
+      const walletResults = await Promise.all(walletPromises);
+      
+      // Filtrar resultados válidos e montar array de entradas
+      for (const walletEntry of walletResults) {
+        if (walletEntry) {
+          // Adicionar múltiplas entradas baseado no número calculado
+          for (let i = 0; i < walletEntry.entries; i++) {
+            lotteryEntries.push(walletEntry);
+          }
+        }
+      }
+
+      // Se não há entradas válidas, retornar null
+      if (lotteryEntries.length === 0) {
+        return null;
+      }
+
+      // Sortear aleatoriamente uma entrada
+      const randomIndex = Math.floor(Math.random() * lotteryEntries.length);
+      const winner = lotteryEntries[randomIndex];
+
+      // Retornar o vencedor com informações adicionais do sorteio
+      return {
+        ...winner,
+        lotteryInfo: {
+          totalEntries: lotteryEntries.length,
+          totalParticipants: new Set(lotteryEntries.map(entry => entry.code)).size,
+          valorPorEntrada: valorPorEntrada,
+          drawnAt: new Date(),
+          winnerChance: (winner.entries / lotteryEntries.length * 100).toFixed(2) + '%'
+        }
+      };
+
+    } catch (error) {
+      throw new Error(`Erro ao realizar sorteio: ${error.message}`);
+    }
+  }
+
+  async markWalletAsWinner(walletCode: number): Promise<any> {
+    try {
+      // Buscar a carteira pelo código
+      const walletRef = this.firestore
+        .collection('wallets')
+        .where('code', '==', walletCode)
+        .limit(1);
+      
+      const walletSnapshot = await walletRef.get();
+
+      if (walletSnapshot.empty) {
+        throw new Error('Carteira não encontrada');
+      }
+
+      const walletDoc = walletSnapshot.docs[0];
+      const walletData = walletDoc.data();
+
+      // TRATAMENTO: Verificar compatibilidade e status
+      // Se não tem alreadyWinner, considera que pode participar (undefined = false)
+      if (walletData.alreadyWinner === true) {
+        throw new Error('Esta carteira já foi premiada anteriormente');
+      }
+
+      // Buscar dados do usuário para incluir na resposta
+      const userRef = this.firestore.collection('users').doc(walletData.userId);
+      const userSnapshot = await userRef.get();
+      
+      if (!userSnapshot.exists) {
+        throw new Error('Usuário da carteira não encontrado');
+      }
+
+      const userData = userSnapshot.data();
+
+      // Usar transação atômica para marcar como vencedora
+      await this.firestore.runTransaction(async (transaction) => {
+        // Re-verificar dentro da transação
+        const currentWalletSnapshot = await transaction.get(walletDoc.ref);
+        
+        if (!currentWalletSnapshot.exists) {
+          throw new Error('Carteira não encontrada na transação');
+        }
+
+        const currentWalletData = currentWalletSnapshot.data();
+        
+        if (currentWalletData.alreadyWinner === true) {
+          throw new Error('Carteira já foi premiada durante a transação');
+        }
+
+        // Marcar como vencedora
+        transaction.update(walletDoc.ref, {
+          alreadyWinner: true,
+          winnerMarkedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+
+        // Opcionalmente, registrar uma transação de histórico do prêmio
+        const winnerLogRef = this.firestore.collection('lottery-winners').doc();
+        transaction.set(winnerLogRef, {
+          walletCode: walletCode,
+          walletId: walletDoc.id,
+          userName: userData.name,
+          userPhone: userData.phone,
+          markedAt: FieldValue.serverTimestamp(),
+          markedBy: 'system' // Você pode passar um parâmetro para identificar quem marcou
+        });
+      });
+
+      // OTIMIZAÇÃO: Invalidar cache relacionado
+      this.cacheService.invalidateWalletCache(walletCode);
+
+      return {
+        message: 'Carteira marcada como vencedora com sucesso',
+        walletCode: walletCode,
+        user: {
+          name: userData.name,
+          phone: userData.phone
+        },
+        markedAt: new Date()
+      };
+
+    } catch (error) {
+      throw new Error(`Erro ao marcar carteira como vencedora: ${error.message}`);
+    }
   }
 }

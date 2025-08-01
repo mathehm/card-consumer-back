@@ -3,7 +3,7 @@ import { Module } from '@nestjs/common';
 import { WalletModule } from './wallet/wallet.module';
 
 @Module({
-  imports: [ConfigModule.forRoot(), WalletModule],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), WalletModule],
   controllers: [],
   providers: [],
 })

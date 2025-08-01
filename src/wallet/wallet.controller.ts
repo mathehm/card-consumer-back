@@ -13,6 +13,7 @@ import { CreateWalletDto } from './dto/create-wallet.dto';
 import { TransferDto } from './dto/transfer.dto';
 import { CancelTransactionDto } from './dto/cancel-transaction.dto';
 import { DebitDto } from './dto/debit.dto';
+import { LotteryDrawDto } from './dto/lottery-draw.dto';
 import { PerformanceInterceptor } from '../common/interceptors/performance.interceptor';
 import { ErrorInterceptor } from '../common/interceptors/error.interceptor';
 
@@ -66,6 +67,16 @@ export class WalletController {
     @Body() cancelDto: CancelTransactionDto
   ) {
     return await this.walletService.cancelTransaction(code, cancelDto);
+  }
+
+  @Post('lottery/draw')
+  async drawLotteryWinner(@Body() lotteryDrawDto: LotteryDrawDto) {
+    return await this.walletService.getNextLotteryWinner(lotteryDrawDto.valorPorEntrada);
+  }
+
+  @Post(':code/mark-winner')
+  async markAsWinner(@Param('code', ParseIntPipe) code: number) {
+    return await this.walletService.markWalletAsWinner(code);
   }
 }
 
