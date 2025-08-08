@@ -12,7 +12,8 @@ async function bootstrap() {
       'http://localhost:3000',  // Mesmo servidor (caso necessário)
       'http://127.0.0.1:4200',  // Variação de localhost
       'http://127.0.0.1:3000',  // Variação de localhost
-      'https://card-consumer-admin.vercel.app'  // Frontend Vercel
+      'https://card-consumer-admin.vercel.app',  // Frontend Vercel
+      'https://www.igrejacaminho.com.br'
     ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true, // Permitir cookies e headers de autenticação
