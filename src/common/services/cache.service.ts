@@ -80,4 +80,30 @@ export class CacheService {
       }
     }
   }
+
+  // NOVA OTIMIZAÇÃO: Invalidar cache de sorteio quando há mudanças
+  invalidateLotteryCache(): void {
+    for (const [key] of this.cache.entries()) {
+      if (key.startsWith('lottery:eligible-wallets:')) {
+        this.cache.delete(key);
+      }
+    }
+  }
+
+  // NOVA OTIMIZAÇÃO: Cache agregado de estatísticas
+  getCacheStats(): { size: number; keys: string[] } {
+    return {
+      size: this.cache.size,
+      keys: Array.from(this.cache.keys())
+    };
+  }
+
+  // NOVA OTIMIZAÇÃO: Cache específico para dados de usuários
+  getUserCache(userId: string): any | null {
+    return this.get(`user:${userId}`);
+  }
+
+  setUserCache(userId: string, userData: any, ttl: number = 10 * 60 * 1000): void {
+    this.set(`user:${userId}`, userData, ttl);
+  }
 }

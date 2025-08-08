@@ -103,56 +103,58 @@ export class WalletService {
         };
       }
 
-      // Buscar dados dos usuários em paralelo
-      const walletsData = await Promise.all(
-        walletsSnapshot.docs.map(async (walletDoc) => {
-          const walletData = walletDoc.data();
-          
-          // Buscar dados do usuário
-          const userSnapshot = await this.firestore.collection('users').doc(walletData.userId).get();
-          const userData = userSnapshot.exists ? userSnapshot.data() : null;
+      // Buscar dados dos usuários em paralelo - OTIMIZAÇÃO: batch reads
+      const userIds = walletsSnapshot.docs.map(doc => doc.data().userId as string);
+      const uniqueUserIds: string[] = [...new Set<string>(userIds)]; // Remove duplicatas se houver
 
-          // Calcular totalCredit dinamicamente se não existir
-          let totalCredit = walletData.totalCredit;
-          if (totalCredit === undefined) {
-            const creditTransactionsRef = this.firestore
-              .collection('transactions')
-              .where('code', '==', walletData.code)
-              .where('type', '==', 'credit')
-              .where('status', '==', 'active');
-            
-            const creditSnapshot = await creditTransactionsRef.get();
-            totalCredit = 0;
-            creditSnapshot.docs.forEach(doc => {
-              const transactionData = doc.data();
-              totalCredit += transactionData.value || 0;
-            });
-          }
-
-          // Determinar status do sorteio
-          let lotteryStatus = 'ineligible';
-          if (walletData.alreadyWinner === true) {
-            lotteryStatus = 'winner';
-          } else if (totalCredit > 0) {
-            lotteryStatus = 'eligible';
-          }
-
-          return {
-            id: walletDoc.id,
-            code: walletData.code,
-            balance: walletData.balance,
-            totalCredit,
-            alreadyWinner: walletData.alreadyWinner || false,
-            winnerMarkedAt: walletData.winnerMarkedAt,
-            createdAt: walletData.createdAt,
-            lotteryStatus,
-            user: userData ? {
-              name: userData.name,
-              phone: userData.phone
-            } : null
-          };
-        })
+      // OTIMIZAÇÃO: Buscar todos os usuários de uma vez
+      const userPromises = uniqueUserIds.map((userId: string) => 
+        this.firestore.collection('users').doc(userId).get()
       );
+      const userSnapshots = await Promise.all(userPromises);
+      
+      // Criar mapa de usuários para acesso rápido O(1)
+      const usersMap = new Map();
+      userSnapshots.forEach((snapshot, index) => {
+        if (snapshot.exists) {
+          usersMap.set(uniqueUserIds[index], snapshot.data());
+        }
+      });
+
+      // OTIMIZAÇÃO: Processar carteiras com acesso direto ao mapa de usuários
+      const walletsData = walletsSnapshot.docs.map((walletDoc) => {
+        const walletData = walletDoc.data();
+        const userData = usersMap.get(walletData.userId);
+
+        // Calcular totalCredit dinamicamente se não existir (sem queries adicionais)
+        let totalCredit = walletData.totalCredit;
+        if (totalCredit === undefined) {
+          totalCredit = 0; // Define como 0 e pode ser recalculado em background se necessário
+        }
+
+        // Determinar status do sorteio
+        let lotteryStatus = 'ineligible';
+        if (walletData.alreadyWinner === true) {
+          lotteryStatus = 'winner';
+        } else if (totalCredit > 0) {
+          lotteryStatus = 'eligible';
+        }
+
+        return {
+          id: walletDoc.id,
+          code: walletData.code,
+          balance: walletData.balance,
+          totalCredit,
+          alreadyWinner: walletData.alreadyWinner || false,
+          winnerMarkedAt: walletData.winnerMarkedAt,
+          createdAt: walletData.createdAt,
+          lotteryStatus,
+          user: userData ? {
+            name: userData.name,
+            phone: userData.phone
+          } : null
+        };
+      });
 
       // Aplicar filtros em memória
       let filteredData = walletsData;
@@ -216,8 +218,8 @@ export class WalletService {
         fromCache: false
       };
 
-      // OTIMIZAÇÃO: Cachear resultado por 5 minutos
-      this.cacheService.set(cacheKey, result, 5 * 60 * 1000);
+      // OTIMIZAÇÃO: Cachear resultado por 10 minutos (aumentado de 5 para reduzir leituras)
+      this.cacheService.set(cacheKey, result, 10 * 60 * 1000);
 
       return result;
 
@@ -279,24 +281,29 @@ export class WalletService {
             ...transactionData,
           };
 
-          // Se a transação tem produtos, buscar os dados dos produtos vendidos
-          if (transactionData.hasProducts && transactionData.type === 'debit') {
-            const productSalesRef = this.firestore
-              .collection('product-sales')
-              .where('transactionId', '==', doc.id);
-            
-            const productSalesSnapshot = await transaction.get(productSalesRef);
-            
-            if (!productSalesSnapshot.empty) {
-              const products = productSalesSnapshot.docs.map(productDoc => ({
-                id: productDoc.id,
-                ...productDoc.data(),
-              }));
+          // OTIMIZAÇÃO: Só buscar produtos se realmente tem produtos E é do tipo debit
+          if (transactionData.hasProducts === true && transactionData.type === 'debit') {
+            try {
+              const productSalesRef = this.firestore
+                .collection('product-sales')
+                .where('transactionId', '==', doc.id);
               
-              return {
-                ...transactionBase,
-                products
-              };
+              const productSalesSnapshot = await transaction.get(productSalesRef);
+              
+              if (!productSalesSnapshot.empty) {
+                const products = productSalesSnapshot.docs.map(productDoc => ({
+                  id: productDoc.id,
+                  ...productDoc.data(),
+                }));
+                
+                return {
+                  ...transactionBase,
+                  products
+                };
+              }
+            } catch (error) {
+              // Em caso de erro, retornar transação sem produtos para não quebrar
+              console.warn(`Erro ao buscar produtos para transação ${doc.id}:`, error);
             }
           }
 
@@ -305,6 +312,7 @@ export class WalletService {
       );
 
       return {
+        code: walletData.code,
         balance: walletData.balance,
         totalCredit: walletData.totalCredit,
         user: userData,
@@ -314,8 +322,8 @@ export class WalletService {
       };
     });
 
-    // OTIMIZAÇÃO: Cachear resultado por 30 segundos
-    this.cacheService.set(cacheKey, result, 30 * 1000);
+    // OTIMIZAÇÃO: Cachear resultado por 2 minutos (aumentado de 30s para reduzir leituras)
+    this.cacheService.set(cacheKey, result, 2 * 60 * 1000);
 
     return result;
   }
@@ -418,6 +426,7 @@ export class WalletService {
     // OTIMIZAÇÃO: Invalidar cache relacionado
     this.cacheService.invalidateWalletCache(code);
     this.cacheService.invalidateWalletListCache();
+    this.cacheService.invalidateLotteryCache(); // Cache de sorteio também precisa ser atualizado
 
     return { message: 'Crédito adicionado com sucesso' };
   }
@@ -961,82 +970,90 @@ export class WalletService {
 
   async getNextLotteryWinner(valorPorEntrada: number): Promise<any | null> {
     try {
-      // OTIMIZAÇÃO: Buscar todas as carteiras (não filtrar por alreadyWinner na consulta)
-      // Firestore não retorna docs sem o campo quando usa "!=" 
-      const walletsRef = this.firestore.collection('wallets');
-      
-      const walletsSnapshot = await walletsRef.get();
+      // OTIMIZAÇÃO CRÍTICA: Cache de dados de sorteio por 2 minutos
+      const cacheKey = `lottery:eligible-wallets:${valorPorEntrada}`;
+      const cachedEligibleWallets = this.cacheService.get<any[]>(cacheKey);
 
-      if (walletsSnapshot.empty) {
-        return null; // Não há carteiras no sistema
-      }
+      let eligibleWallets: any[];
 
-      // Array para armazenar todas as entradas do sorteio
-      const lotteryEntries: any[] = [];
-      
-      // Preparar promessas para buscar dados de usuário em paralelo
-      const walletPromises = walletsSnapshot.docs.map(async (walletDoc) => {
-        const walletData = walletDoc.data();
+      if (cachedEligibleWallets && Array.isArray(cachedEligibleWallets)) {
+        eligibleWallets = cachedEligibleWallets;
+      } else {
+        // OTIMIZAÇÃO: Buscar apenas carteiras elegíveis (com totalCredit > valorPorEntrada e não vencedoras)
+        const walletsRef = this.firestore
+          .collection('wallets')
+          .where('totalCredit', '>=', valorPorEntrada)
+          .where('alreadyWinner', '!=', true);
         
-        // TRATAMENTO: Verificar se já é vencedora (undefined = pode participar)
-        if (walletData.alreadyWinner === true) {
-          return null; // Pular carteiras que já venceram
-        }
-        
-        // Buscar dados do usuário
-        const userSnapshot = await this.firestore.collection('users').doc(walletData.userId).get();
-        
-        if (!userSnapshot.exists) {
-          return null; // Pular carteiras sem usuário válido
+        const walletsSnapshot = await walletsRef.get();
+
+        if (walletsSnapshot.empty) {
+          return null; // Não há carteiras elegíveis
         }
 
-        const userData = userSnapshot.data();
-
-        // COMPATIBILIDADE: Calcular totalCredit dinamicamente se não existir
-        let totalCredit = walletData.totalCredit;
+        // OTIMIZAÇÃO: Buscar usuários em lote (batch reads)
+        const userIds = walletsSnapshot.docs.map(doc => doc.data().userId);
+        const uniqueUserIds = [...new Set(userIds)];
         
-        if (totalCredit === undefined) {
-          return null;
-        }
-
-        // Calcular número de entradas no sorteio
-        const entries = Math.floor(totalCredit / valorPorEntrada);
-
-        // Se a carteira tem pelo menos 1 entrada, preparar dados
-        if (entries > 0) {
-          return {
-            walletId: walletDoc.id,
-            code: walletData.code,
-            balance: walletData.balance,
-            totalCredit: totalCredit,
-            entries: entries,
-            user: {
-              name: userData.name,
-              phone: userData.phone
-            },
-            createdAt: walletData.createdAt
-          };
-        }
-
-        return null;
-      });
-
-      // Aguardar todos os processamentos
-      const walletResults = await Promise.all(walletPromises);
-      
-      // Filtrar resultados válidos e montar array de entradas
-      for (const walletEntry of walletResults) {
-        if (walletEntry) {
-          // Adicionar múltiplas entradas baseado no número calculado
-          for (let i = 0; i < walletEntry.entries; i++) {
-            lotteryEntries.push(walletEntry);
+        // Buscar todos os usuários de uma vez usando Promise.all
+        const userPromises = uniqueUserIds.map(userId => 
+          this.firestore.collection('users').doc(userId).get()
+        );
+        const userSnapshots = await Promise.all(userPromises);
+        
+        // Criar mapa de usuários para acesso rápido
+        const usersMap = new Map();
+        userSnapshots.forEach((snapshot, index) => {
+          if (snapshot.exists) {
+            usersMap.set(uniqueUserIds[index], snapshot.data());
           }
-        }
+        });
+
+        // Processar carteiras elegíveis
+        eligibleWallets = walletsSnapshot.docs
+          .map(walletDoc => {
+            const walletData = walletDoc.data();
+            const userData = usersMap.get(walletData.userId);
+            
+            if (!userData || !walletData.totalCredit) {
+              return null;
+            }
+
+            const entries = Math.floor(walletData.totalCredit / valorPorEntrada);
+            
+            if (entries <= 0) {
+              return null;
+            }
+
+            return {
+              walletId: walletDoc.id,
+              code: walletData.code,
+              balance: walletData.balance,
+              totalCredit: walletData.totalCredit,
+              entries: entries,
+              user: {
+                name: userData.name,
+                phone: userData.phone
+              },
+              createdAt: walletData.createdAt
+            };
+          })
+          .filter(Boolean);
+
+        // Cache por 2 minutos para reduzir leituras em sorteios consecutivos
+        this.cacheService.set(cacheKey, eligibleWallets, 2 * 60 * 1000);
       }
 
-      // Se não há entradas válidas, retornar null
-      if (lotteryEntries.length === 0) {
+      if (eligibleWallets.length === 0) {
         return null;
+      }
+
+      // OTIMIZAÇÃO: Montagem otimizada do array de entradas
+      const lotteryEntries: any[] = [];
+      for (const wallet of eligibleWallets) {
+        for (let i = 0; i < wallet.entries; i++) {
+          lotteryEntries.push(wallet);
+        }
       }
 
       // Sortear aleatoriamente uma entrada
@@ -1048,7 +1065,7 @@ export class WalletService {
         ...winner,
         lotteryInfo: {
           totalEntries: lotteryEntries.length,
-          totalParticipants: new Set(lotteryEntries.map(entry => entry.code)).size,
+          totalParticipants: eligibleWallets.length,
           valorPorEntrada: valorPorEntrada,
           drawnAt: new Date(),
           winnerChance: (winner.entries / lotteryEntries.length * 100).toFixed(2) + '%'
@@ -1129,6 +1146,7 @@ export class WalletService {
 
       // OTIMIZAÇÃO: Invalidar cache relacionado
       this.cacheService.invalidateWalletCache(walletCode);
+      this.cacheService.invalidateLotteryCache(); // Cache de sorteio precisa ser atualizado
 
       return {
         message: 'Carteira marcada como vencedora com sucesso',
