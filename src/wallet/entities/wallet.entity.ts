@@ -6,4 +6,7 @@ export class Wallet {
   balance: number;
   user: User;
   transactions?: Transaction[];
+  alreadyWinner?: boolean;
+  winnerMarkedAt?: Date;
+  totalCredit?: number; // Campo para armazenar total de créditos (calculado)
 }

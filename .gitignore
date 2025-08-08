@@ -54,5 +54,12 @@ pids
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
+# Documentation files
+*.md
+
+# Service account keys and sensitive configuration
+service-account-key.json
+config/service-account-key.json
+
 # Key
 env.json
