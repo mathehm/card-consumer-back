@@ -64,5 +64,20 @@ export class CacheService {
         }
       }
     }
+
+    // IMPORTANTE: Invalidar também o cache de listagem
+    // pois mudanças em uma carteira afetam a listagem geral
+    this.invalidateWalletListCache();
+  }
+
+  // Invalidar cache de listagem de carteiras
+  invalidateWalletListCache(): void {
+    // Buscar todas as chaves que começam com "wallets:list:" 
+    // (que é o padrão usado na listagem com parâmetros)
+    for (const [key] of this.cache.entries()) {
+      if (key.startsWith('wallets:list:')) {
+        this.cache.delete(key);
+      }
+    }
   }
 }

@@ -7,6 +7,7 @@ import {
   Delete,
   UseInterceptors,
   ParseIntPipe,
+  Query,
 } from '@nestjs/common';
 import { WalletService } from './wallet.service';
 import { CreateWalletDto } from './dto/create-wallet.dto';
@@ -14,6 +15,7 @@ import { TransferDto } from './dto/transfer.dto';
 import { CancelTransactionDto } from './dto/cancel-transaction.dto';
 import { DebitDto } from './dto/debit.dto';
 import { LotteryDrawDto } from './dto/lottery-draw.dto';
+import { ListWalletsDto } from './dto/list-wallets.dto';
 import { PerformanceInterceptor } from '../common/interceptors/performance.interceptor';
 import { ErrorInterceptor } from '../common/interceptors/error.interceptor';
 
@@ -25,6 +27,11 @@ export class WalletController {
   @Post('register')
   async create(@Body() createWalletDto: CreateWalletDto) {
     return await this.walletService.create(createWalletDto);
+  }
+
+  @Get()
+  async findAll(@Query() listWalletsDto: ListWalletsDto) {
+    return await this.walletService.findAll(listWalletsDto);
   }
 
   @Get(':code')

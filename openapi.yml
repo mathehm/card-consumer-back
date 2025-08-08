@@ -49,6 +49,145 @@ paths:
                     type: string
                     example: 'Carteira criada com sucesso'
 
+  /wallet:
+    get:
+      tags:
+        - Wallet
+      summary: Listar carteiras com paginação, busca e ordenação
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Número da página
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          description: Itens por página
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Buscar por código, nome do usuário ou telefone
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+            enum:
+              - balance_asc
+              - balance_desc
+              - totalCredit_asc
+              - totalCredit_desc
+              - createdAt_asc
+              - createdAt_desc
+              - userName_asc
+              - userName_desc
+              - code_asc
+              - code_desc
+            default: createdAt_desc
+          description: Campo e direção da ordenação
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum:
+              - all
+              - winner
+              - eligible
+              - ineligible
+            default: all
+          description: Filtrar por status do sorteio
+      responses:
+        '200':
+          description: Lista de carteiras
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          example: 'abc123'
+                        code:
+                          type: number
+                          example: 12345
+                        balance:
+                          type: number
+                          example: 150.75
+                        totalCredit:
+                          type: number
+                          example: 200.00
+                        alreadyWinner:
+                          type: boolean
+                          example: false
+                        winnerMarkedAt:
+                          type: string
+                          format: date-time
+                          nullable: true
+                        createdAt:
+                          type: string
+                          format: date-time
+                        lotteryStatus:
+                          type: string
+                          enum: [winner, eligible, ineligible]
+                          example: eligible
+                        user:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                              example: 'João Silva'
+                            phone:
+                              type: string
+                              example: '(11) 99999-9999'
+                  pagination:
+                    type: object
+                    properties:
+                      page:
+                        type: integer
+                        example: 1
+                      limit:
+                        type: integer
+                        example: 10
+                      total:
+                        type: integer
+                        example: 25
+                      totalPages:
+                        type: integer
+                        example: 3
+                      hasNext:
+                        type: boolean
+                        example: true
+                      hasPrev:
+                        type: boolean
+                        example: false
+                  filters:
+                    type: object
+                    properties:
+                      search:
+                        type: string
+                        example: 'João'
+                      sortBy:
+                        type: string
+                        example: 'createdAt_desc'
+                      status:
+                        type: string
+                        example: 'all'
+                  fromCache:
+                    type: boolean
+                    example: false
+
   /wallet/{code}/credit:
     post:
       tags:

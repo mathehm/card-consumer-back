@@ -3,6 +3,7 @@ import { CreateWalletDto } from './dto/create-wallet.dto';
 import { TransferDto } from './dto/transfer.dto';
 import { CancelTransactionDto } from './dto/cancel-transaction.dto';
 import { DebitDto } from './dto/debit.dto';
+import { ListWalletsDto } from './dto/list-wallets.dto';
 import { FieldValue, Firestore } from '@google-cloud/firestore';
 import { v4 as uuidv4 } from 'uuid';
 import { CacheService } from '../common/services/cache.service';
@@ -60,6 +61,171 @@ export class WalletService {
     return { message: 'Carteira criada com sucesso' };
   }
 
+  async findAll(listWalletsDto: ListWalletsDto): Promise<any> {
+    try {
+      const { page, limit, search, sortBy, status } = listWalletsDto;
+      const offset = (page - 1) * limit;
+
+      // OTIMIZAÇÃO: Verificar cache primeiro
+      const cacheKey = `wallets:list:${JSON.stringify(listWalletsDto)}`;
+      const cachedResult = this.cacheService.get(cacheKey);
+      
+      if (cachedResult) {
+        return Object.assign({}, cachedResult, { fromCache: true });
+      }
+
+      // Buscar todas as carteiras (sem filtros do Firestore para compatibilidade)
+      let walletsQuery: any = this.firestore.collection('wallets');
+      
+      // Aplicar ordenação básica no Firestore (se possível)
+      if (sortBy === 'createdAt_asc') {
+        walletsQuery = walletsQuery.orderBy('createdAt', 'asc');
+      } else if (sortBy === 'createdAt_desc') {
+        walletsQuery = walletsQuery.orderBy('createdAt', 'desc');
+      } else if (sortBy === 'code_asc') {
+        walletsQuery = walletsQuery.orderBy('code', 'asc');
+      } else if (sortBy === 'code_desc') {
+        walletsQuery = walletsQuery.orderBy('code', 'desc');
+      }
+
+      const walletsSnapshot = await walletsQuery.get();
+
+      if (walletsSnapshot.empty) {
+        return {
+          data: [],
+          pagination: {
+            page,
+            limit,
+            total: 0,
+            totalPages: 0
+          },
+          fromCache: false
+        };
+      }
+
+      // Buscar dados dos usuários em paralelo
+      const walletsData = await Promise.all(
+        walletsSnapshot.docs.map(async (walletDoc) => {
+          const walletData = walletDoc.data();
+          
+          // Buscar dados do usuário
+          const userSnapshot = await this.firestore.collection('users').doc(walletData.userId).get();
+          const userData = userSnapshot.exists ? userSnapshot.data() : null;
+
+          // Calcular totalCredit dinamicamente se não existir
+          let totalCredit = walletData.totalCredit;
+          if (totalCredit === undefined) {
+            const creditTransactionsRef = this.firestore
+              .collection('transactions')
+              .where('code', '==', walletData.code)
+              .where('type', '==', 'credit')
+              .where('status', '==', 'active');
+            
+            const creditSnapshot = await creditTransactionsRef.get();
+            totalCredit = 0;
+            creditSnapshot.docs.forEach(doc => {
+              const transactionData = doc.data();
+              totalCredit += transactionData.value || 0;
+            });
+          }
+
+          // Determinar status do sorteio
+          let lotteryStatus = 'ineligible';
+          if (walletData.alreadyWinner === true) {
+            lotteryStatus = 'winner';
+          } else if (totalCredit > 0) {
+            lotteryStatus = 'eligible';
+          }
+
+          return {
+            id: walletDoc.id,
+            code: walletData.code,
+            balance: walletData.balance,
+            totalCredit,
+            alreadyWinner: walletData.alreadyWinner || false,
+            winnerMarkedAt: walletData.winnerMarkedAt,
+            createdAt: walletData.createdAt,
+            lotteryStatus,
+            user: userData ? {
+              name: userData.name,
+              phone: userData.phone
+            } : null
+          };
+        })
+      );
+
+      // Aplicar filtros em memória
+      let filteredData = walletsData;
+
+      // Filtro de busca
+      if (search && search.trim()) {
+        const searchTerm = search.toLowerCase().trim();
+        filteredData = filteredData.filter(wallet => 
+          wallet.code.toString().includes(searchTerm) ||
+          (wallet.user?.name && wallet.user.name.toLowerCase().includes(searchTerm)) ||
+          (wallet.user?.phone && wallet.user.phone.includes(searchTerm))
+        );
+      }
+
+      // Filtro de status
+      if (status !== 'all') {
+        filteredData = filteredData.filter(wallet => wallet.lotteryStatus === status);
+      }
+
+      // Aplicar ordenação em memória (para campos que não podem ser ordenados no Firestore)
+      if (sortBy && !sortBy.includes('createdAt') && !sortBy.includes('code')) {
+        const [field, direction] = sortBy.split('_');
+        filteredData.sort((a, b) => {
+          let aValue = a[field];
+          let bValue = b[field];
+          
+          // Tratamento especial para userName
+          if (field === 'userName') {
+            aValue = a.user?.name || '';
+            bValue = b.user?.name || '';
+          }
+          
+          if (direction === 'asc') {
+            return aValue > bValue ? 1 : -1;
+          } else {
+            return aValue < bValue ? 1 : -1;
+          }
+        });
+      }
+
+      // Aplicar paginação
+      const total = filteredData.length;
+      const totalPages = Math.ceil(total / limit);
+      const paginatedData = filteredData.slice(offset, offset + limit);
+
+      const result = {
+        data: paginatedData,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNext: page < totalPages,
+          hasPrev: page > 1
+        },
+        filters: {
+          search: search || '',
+          sortBy: sortBy || 'createdAt_desc',
+          status: status || 'all'
+        },
+        fromCache: false
+      };
+
+      // OTIMIZAÇÃO: Cachear resultado por 5 minutos
+      this.cacheService.set(cacheKey, result, 5 * 60 * 1000);
+
+      return result;
+
+    } catch (error) {
+      throw new Error(`Erro ao listar carteiras: ${error.message}`);
+    }
+  }
+
   async findOne(code: number): Promise<any> {
     // OTIMIZAÇÃO: Verificar cache primeiro
     const cacheKey = `wallet:${code}:full`;
@@ -103,10 +269,40 @@ export class WalletService {
       }
 
       const userData = userSnapshot.data();
-      const transactions = transactionsSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      
+      // Buscar produtos relacionados para transações que têm produtos
+      const transactions = await Promise.all(
+        transactionsSnapshot.docs.map(async (doc) => {
+          const transactionData = doc.data();
+          const transactionBase = {
+            id: doc.id,
+            ...transactionData,
+          };
+
+          // Se a transação tem produtos, buscar os dados dos produtos vendidos
+          if (transactionData.hasProducts && transactionData.type === 'debit') {
+            const productSalesRef = this.firestore
+              .collection('product-sales')
+              .where('transactionId', '==', doc.id);
+            
+            const productSalesSnapshot = await transaction.get(productSalesRef);
+            
+            if (!productSalesSnapshot.empty) {
+              const products = productSalesSnapshot.docs.map(productDoc => ({
+                id: productDoc.id,
+                ...productDoc.data(),
+              }));
+              
+              return {
+                ...transactionBase,
+                products
+              };
+            }
+          }
+
+          return transactionBase;
+        })
+      );
 
       return {
         balance: walletData.balance,
@@ -221,6 +417,7 @@ export class WalletService {
 
     // OTIMIZAÇÃO: Invalidar cache relacionado
     this.cacheService.invalidateWalletCache(code);
+    this.cacheService.invalidateWalletListCache();
 
     return { message: 'Crédito adicionado com sucesso' };
   }
