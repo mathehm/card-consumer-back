@@ -993,11 +993,10 @@ export class WalletService {
       if (cachedEligibleWallets && Array.isArray(cachedEligibleWallets)) {
         eligibleWallets = cachedEligibleWallets;
       } else {
-        // OTIMIZAÇÃO: Buscar apenas carteiras elegíveis (com totalCredit > valorPorEntrada e não vencedoras)
+        // OTIMIZAÇÃO: Buscar carteiras elegíveis (filtrar alreadyWinner em memória para evitar problema de índices compostos)
         const walletsRef = this.firestore
           .collection('wallets')
-          .where('totalCredit', '>=', valorPorEntrada)
-          .where('alreadyWinner', '!=', true);
+          .where('totalCredit', '>=', valorPorEntrada);
         
         const walletsSnapshot = await walletsRef.get();
 
@@ -1028,6 +1027,11 @@ export class WalletService {
           .map(walletDoc => {
             const walletData = walletDoc.data();
             const userData = usersMap.get(walletData.userId);
+            
+            // Filtrar carteiras que já ganharam
+            if (walletData.alreadyWinner === true) {
+              return null;
+            }
             
             if (!userData || !walletData.totalCredit) {
               return null;
