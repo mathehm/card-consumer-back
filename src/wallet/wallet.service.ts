@@ -53,6 +53,20 @@ export class WalletService {
       // Operações dentro da transação
       transaction.set(userRef, userData);
       transaction.set(walletRef, walletData);
+
+      // Se foi criada com saldo inicial, registrar transação de crédito
+      if (createWalletDto.balance && createWalletDto.balance > 0) {
+        const transactionRef = this.firestore.collection('transactions').doc();
+        transaction.set(transactionRef, {
+          code: createWalletDto.code,
+          value: createWalletDto.balance,
+          type: 'credit',
+          date: FieldValue.serverTimestamp(),
+          walletId: walletRef.id,
+          status: 'active',
+          description: 'Crédito inicial da carteira'
+        });
+      }
     });
 
     // OTIMIZAÇÃO: Invalidar cache relacionado
