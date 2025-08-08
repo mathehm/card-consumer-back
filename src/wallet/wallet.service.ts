@@ -146,14 +146,6 @@ export class WalletService {
           totalCredit = 0; // Define como 0 e pode ser recalculado em background se necessário
         }
 
-        // Determinar status do sorteio
-        let lotteryStatus = 'ineligible';
-        if (walletData.alreadyWinner === true) {
-          lotteryStatus = 'winner';
-        } else if (totalCredit > 0) {
-          lotteryStatus = 'eligible';
-        }
-
         return {
           id: walletDoc.id,
           code: walletData.code,
@@ -162,7 +154,6 @@ export class WalletService {
           alreadyWinner: walletData.alreadyWinner || false,
           winnerMarkedAt: walletData.winnerMarkedAt,
           createdAt: walletData.createdAt,
-          lotteryStatus,
           user: userData ? {
             name: userData.name,
             phone: userData.phone
@@ -329,6 +320,7 @@ export class WalletService {
         code: walletData.code,
         balance: walletData.balance,
         totalCredit: walletData.totalCredit,
+        alreadyWinner: walletData.alreadyWinner,
         user: userData,
         transactions,
         transactionCount: transactions.length,
