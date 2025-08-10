@@ -7,15 +7,19 @@ export class ReportsService {
 
   async getSalesToday(): Promise<any> {
     try {
+      // Usar timezone do Brasil (UTC-3) para calcular "hoje"
       const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today);
+      const offset = -3 * 60; // UTC-3 em minutos
+      const localTime = new Date(today.getTime() + (offset * 60 * 1000));
+      localTime.setHours(0, 0, 0, 0);
+      
+      const tomorrow = new Date(localTime);
       tomorrow.setDate(tomorrow.getDate() + 1);
 
       // Buscar vendas de hoje
       const salesSnapshot = await this.firestore
         .collection('product-sales')
-        .where('soldAt', '>=', today)
+        .where('soldAt', '>=', localTime)
         .where('soldAt', '<', tomorrow)
         .get();
 
@@ -48,7 +52,7 @@ export class ReportsService {
       const totalItems = sales.reduce((sum, sale) => sum + sale.quantity, 0);
 
       return {
-        date: today.toISOString().split('T')[0],
+        date: localTime.toISOString().split('T')[0],
         summary: {
           totalValue,
           totalItems,
@@ -106,14 +110,19 @@ export class ReportsService {
 
   async getSalesByPeriod(startDate: string, endDate: string): Promise<any> {
     try {
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
+      // Usar timezone do Brasil (UTC-3)
+      const offset = -3 * 60; // UTC-3 em minutos
+      
+      const start = new Date(startDate + 'T00:00:00.000Z');
+      const startLocal = new Date(start.getTime() + (offset * 60 * 1000));
+      
+      const end = new Date(endDate + 'T23:59:59.999Z');
+      const endLocal = new Date(end.getTime() + (offset * 60 * 1000));
 
       const salesSnapshot = await this.firestore
         .collection('product-sales')
-        .where('soldAt', '>=', start)
-        .where('soldAt', '<=', end)
+        .where('soldAt', '>=', startLocal)
+        .where('soldAt', '<=', endLocal)
         .orderBy('soldAt', 'desc')
         .get();
 
