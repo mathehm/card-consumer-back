@@ -34,4 +34,15 @@ export class ReportsController {
     }
     return await this.reportsService.getSalesByPeriod(startDate, endDate);
   }
+
+  @Get('party-summary')
+  async getPartySummary(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    if (!startDate || !endDate) {
+      throw new Error('startDate e endDate são obrigatórios');
+    }
+    return await this.reportsService.getPartySummary(startDate, endDate);
+  }
 }

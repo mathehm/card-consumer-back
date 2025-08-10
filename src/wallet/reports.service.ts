@@ -166,4 +166,61 @@ export class ReportsService {
       throw new Error(`Erro ao buscar vendas por período: ${error.message}`);
     }
   }
+
+  async getPartySummary(startDate: string, endDate: string): Promise<any> {
+    try {
+      // Converter datas para timezone do Brasil (UTC-3)
+      const start = new Date(startDate + 'T03:00:00.000Z');
+      const end = new Date(endDate + 'T02:59:59.999Z');
+
+      // Buscar todas as vendas do período
+      const salesSnapshot = await this.firestore
+        .collection('product-sales')
+        .where('soldAt', '>=', start)
+        .where('soldAt', '<=', end)
+        .get();
+
+      const sales = salesSnapshot.docs.map(doc => doc.data() as any);
+
+      // Buscar soma total de créditos de todas as wallets
+      const walletsSnapshot = await this.firestore
+        .collection('wallets')
+        .get();
+
+      const totalWalletCredit = walletsSnapshot.docs.reduce((sum, doc) => {
+        const walletData = doc.data() as any;
+        return sum + (walletData.totalCredit || 0);
+      }, 0);
+
+      // Agrupar vendas por produto
+      const productSales = sales.reduce((acc, sale) => {
+        const key = sale.productId;
+        if (!acc[key]) {
+          acc[key] = {
+            productId: sale.productId,
+            productName: sale.productName,
+            totalQuantity: 0,
+            totalValue: 0
+          };
+        }
+        acc[key].totalQuantity += sale.quantity;
+        acc[key].totalValue += sale.subtotal;
+        return acc;
+      }, {});
+
+      const totalSalesValue = sales.reduce((sum, sale) => sum + sale.subtotal, 0);
+      const totalSalesQuantity = sales.reduce((sum, sale) => sum + sale.quantity, 0);
+
+      return {
+        period: { startDate, endDate },
+        totalWalletCredit,
+        totalSalesValue,
+        totalSalesQuantity,
+        totalSales: sales.length,
+        productBreakdown: Object.values(productSales).sort((a: any, b: any) => b.totalValue - a.totalValue)
+      };
+    } catch (error) {
+      throw new Error(`Erro ao buscar resumo da festa: ${error.message}`);
+    }
+  }
 }
