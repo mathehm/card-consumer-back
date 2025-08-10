@@ -8,19 +8,22 @@ export class ReportsService {
   async getSalesToday(): Promise<any> {
     try {
       // Usar timezone do Brasil (UTC-3) para calcular "hoje"
-      const today = new Date();
-      const offset = -3 * 60; // UTC-3 em minutos
-      const localTime = new Date(today.getTime() + (offset * 60 * 1000));
-      localTime.setHours(0, 0, 0, 0);
+      const now = new Date();
+      const brasiliaOffset = -3 * 60; // UTC-3 em minutos
+      const brasiliaTime = new Date(now.getTime() + (brasiliaOffset * 60 * 1000));
       
-      const tomorrow = new Date(localTime);
-      tomorrow.setDate(tomorrow.getDate() + 1);
+      const startOfDay = new Date(brasiliaTime);
+      startOfDay.setHours(0, 0, 0, 0);
+      
+      const endOfDay = new Date(brasiliaTime);
+      endOfDay.setHours(23, 59, 59, 999);
+
 
       // Buscar vendas de hoje
       const salesSnapshot = await this.firestore
         .collection('product-sales')
-        .where('soldAt', '>=', localTime)
-        .where('soldAt', '<', tomorrow)
+        .where('soldAt', '>=', startOfDay)
+        .where('soldAt', '<=', endOfDay)
         .get();
 
       const sales = salesSnapshot.docs.map(doc => doc.data() as any);
@@ -52,7 +55,7 @@ export class ReportsService {
       const totalItems = sales.reduce((sum, sale) => sum + sale.quantity, 0);
 
       return {
-        date: localTime.toISOString().split('T')[0],
+        date: brasiliaTime.toISOString().split('T')[0],
         summary: {
           totalValue,
           totalItems,
@@ -110,19 +113,14 @@ export class ReportsService {
 
   async getSalesByPeriod(startDate: string, endDate: string): Promise<any> {
     try {
-      // Usar timezone do Brasil (UTC-3)
-      const offset = -3 * 60; // UTC-3 em minutos
-      
-      const start = new Date(startDate + 'T00:00:00.000Z');
-      const startLocal = new Date(start.getTime() + (offset * 60 * 1000));
-      
-      const end = new Date(endDate + 'T23:59:59.999Z');
-      const endLocal = new Date(end.getTime() + (offset * 60 * 1000));
+      // Converter datas para timezone do Brasil (UTC-3)
+      const start = new Date(startDate + 'T03:00:00.000Z'); // 00:00 Brasil = 03:00 UTC
+      const end = new Date(endDate + 'T02:59:59.999Z');     // 23:59 Brasil = 02:59 UTC do dia seguinte
 
       const salesSnapshot = await this.firestore
         .collection('product-sales')
-        .where('soldAt', '>=', startLocal)
-        .where('soldAt', '<=', endLocal)
+        .where('soldAt', '>=', start)
+        .where('soldAt', '<=', end)
         .orderBy('soldAt', 'desc')
         .get();
 
@@ -144,7 +142,6 @@ export class ReportsService {
         }
         acc[date].totalValue += sale.subtotal;
         acc[date].totalQuantity += sale.quantity;
-        acc[date].sales.push(sale);
         return acc;
       }, {});
 
@@ -159,7 +156,11 @@ export class ReportsService {
           totalSales: sales.length,
           daysWithSales: Object.keys(salesByDate).length
         },
-        salesByDate: Object.values(salesByDate)
+        salesByDate: Object.values(salesByDate).map((day: any) => ({
+          date: day.date,
+          totalValue: day.totalValue,
+          totalQuantity: day.totalQuantity
+        }))
       };
     } catch (error) {
       throw new Error(`Erro ao buscar vendas por período: ${error.message}`);
